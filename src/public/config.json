@@ -1,0 +1,10 @@
+{
+    "firingOptions": {
+        "Bisque": 0.03,
+        "Slipcast Bisque": 0.04,
+        "Oxidation ∆ 6": 0.03,
+        "Reduction ∆ 10": 0.03
+    },
+    "rushJobDays": 6,
+    "rushJobPremium": 50
+}
