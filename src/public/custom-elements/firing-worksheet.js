@@ -551,6 +551,7 @@ class CeramicsFiringCalculator extends HTMLElement {
         else if (target.type === 'date') {
             const error = this._validateDate(target.value);
             this._displayFieldError(cell, target, error);
+            // For date errors, don't calculate if invalid
             if (error) return;
         }
         // Handle number input validation
@@ -558,10 +559,10 @@ class CeramicsFiringCalculator extends HTMLElement {
             const fieldType = target.getAttribute('data-field');
             const error = this._validateNumberInput(target.value, fieldType);
             this._displayFieldError(cell, target, error);
-            if (error) return;
+            // Note: Continue to calculate even with validation errors for live updates
         }
 
-        // Recalculate row values and totals
+        // Always recalculate row values and totals (except for invalid dates)
         this.calculateRowValues(row);
         this.updateTotalCost();
     }
