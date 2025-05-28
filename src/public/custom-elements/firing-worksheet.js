@@ -511,9 +511,8 @@ class CeramicsFiringCalculator extends HTMLElement {
         
         // Add initial row and update UI
         this.addRow();
-        // Note: addRow() now handles calculateRowValues with setTimeout
-        // this.updateTotalCost(); - already called by addRow
-        // this.updateDeleteButtonState(); - already called by addRow
+        this.updateTotalCost();
+        this.updateDeleteButtonState();
     }
 
     /**
@@ -543,8 +542,10 @@ class CeramicsFiringCalculator extends HTMLElement {
         const cell = target.closest('td');
 
         // Handle firing type selection changes
-        if (target.tagName === 'SELECT') {
-            this._updateUnitCost(row, target.value);
+        if (target.tagName === 'SELECT' && target.hasAttribute('data-field')) {
+            if (target.getAttribute('data-field') === 'firing-type') {
+                this._updateUnitCost(row, target.value);
+            }
         }
         // Handle date validation
         else if (target.type === 'date') {
@@ -588,12 +589,9 @@ class CeramicsFiringCalculator extends HTMLElement {
      * @private
      */
     _updateUnitCost(row, firingType) {
-        // Unit cost is in cell 1
-        const unitCostCell = row.cells[1];
+        const unitCostCell = row.querySelector('[data-field="unit-cost"]');
         const unitCost = this.FIRING_OPTIONS[firingType] || 0;
-        if (unitCostCell) {
-            unitCostCell.textContent = this.USDformatter.format(unitCost);
-        }
+        unitCostCell.textContent = this.USDformatter.format(unitCost);
     }
 
     /**
@@ -702,16 +700,14 @@ class CeramicsFiringCalculator extends HTMLElement {
             // FIXED: Using consistent naming 'photoBuffer' to match backend expectations
             row.dataset.photoBuffer = optimizedImage;
 
-            // Update preview cell with thumbnail - preview is in cell 11 (second to last)
-            const previewCell = row.cells[row.cells.length - 2];
+            // Update preview cell with thumbnail
+            const previewCell = row.querySelector('[data-field="preview"]');
             const img = document.createElement('img');
             img.src = thumbnail;
             img.alt = 'Photo preview';
             img.className = 'thumbnail';
-            if (previewCell) {
-                previewCell.innerHTML = '';
-                previewCell.appendChild(img);
-            }
+            previewCell.innerHTML = '';
+            previewCell.appendChild(img);
 
             return true;
         } catch (error) {
@@ -823,12 +819,8 @@ class CeramicsFiringCalculator extends HTMLElement {
         this.dataRows.appendChild(row);
         
         // Update calculations and UI state
-        // Use setTimeout to ensure the DOM is fully updated before calculating
-        setTimeout(() => {
-            this.calculateRowValues(row);
-            this.updateTotalCost();
-        }, 0);
-        
+        this.calculateRowValues(row);
+        this.updateTotalCost();
         this.updateDeleteButtonState();
     }
 
@@ -908,7 +900,7 @@ class CeramicsFiringCalculator extends HTMLElement {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', 'Volume');
         cell.setAttribute('data-field', 'volume'); // Keep data-field on cell for volume since it's display only
-        cell.textContent = String(this.MIN_DIMENSION * this.MIN_DIMENSION * this.MIN_DIMENSION); // Volume of minimum dimensions (2×2×2 = 8)
+        cell.textContent = String(this.MIN_DIMENSION ** 3); // Volume of minimum dimensions (2×2×2 = 8)
         return cell;
     }
 
@@ -1135,53 +1127,94 @@ class CeramicsFiringCalculator extends HTMLElement {
      * Calculate pricing and volume for a specific row
      * @param {HTMLTableRowElement} row - The table row to calculate
      */
+/**
+     * Calculate pricing and volume for a specific row
+     * @param {HTMLTableRowElement} row - The table row to calculate
+     */
     calculateRowValues(row) {
-        // Use cell indexing - simple and reliable
-        // Order: Firing Type(0), Unit Cost(1), Height(2), Width(3), Length(4), Volume(5), Quantity(6), Price(7), Due Date(8)
-        
-        const heightInput = row.cells[2]?.querySelector('input');
-        const widthInput = row.cells[3]?.querySelector('input');
-        const lengthInput = row.cells[4]?.querySelector('input');
-        const quantityInput = row.cells[6]?.querySelector('input');
-        const dueDateInput = row.cells[8]?.querySelector('input');
+        console.log("CALCULATE ROW VALUES - START for row:", row); // Log the row element
 
+        // Get input elements using data attributes
+        const heightInput = row.querySelector('[data-field="height"]');
+        const widthInput = row.querySelector('[data-field="width"]'); 
+        const lengthInput = row.querySelector('[data-field="length"]');
+        const quantityInput = row.querySelector('[data-field="quantity"]');
+        const dueDateInput = row.querySelector('[data-field="due-date"]'); // For rush job calculation
+
+        // Log the found elements and their raw values
+        console.log("  heightInput element:", heightInput, "| raw value:", heightInput?.value);
+        console.log("  widthInput element:", widthInput, "| raw value:", widthInput?.value);
+        console.log("  lengthInput element:", lengthInput, "| raw value:", lengthInput?.value);
+        console.log("  quantityInput element:", quantityInput, "| raw value:", quantityInput?.value);
+        console.log("  dueDateInput element:", dueDateInput, "| raw value:", dueDateInput?.value);
+
+        // Parse integer values, defaulting to 0 if parsing fails or element/value is not found
         const height = parseInt(heightInput?.value) || 0;
         const width = parseInt(widthInput?.value) || 0;
         const length = parseInt(lengthInput?.value) || 0;
         const quantity = parseInt(quantityInput?.value) || 0;
-        const dueDate = dueDateInput?.value;
+        const dueDate = dueDateInput?.value; // Keep as string for date logic
+
+        console.log("  PARSED DIMENSIONS & QTY: Height=", height, "Width=", width, "Length=", length, "Quantity=", quantity);
 
         // Calculate volume
         const volume = height * width * length;
+        console.log("  CALCULATED VOLUME:", volume);
         
-        // Get unit cost from cell 1
-        const unitCostText = row.cells[1]?.textContent || '$0.00';
+        // Get unit cost from display cell
+        const unitCostCell = row.querySelector('[data-field="unit-cost"]');
+        const unitCostText = unitCostCell?.textContent || '$0.00'; // Default if cell or textContent is missing
         const unitCost = parseFloat(unitCostText.replace(/[^0-9.-]+/g, '')) || 0;
+        console.log("  UNIT COST: Text=", unitCostText, "| Parsed=", unitCost);
         
         // Calculate base price
         let price = volume * quantity * unitCost;
+        console.log("  BASE PRICE (Volume * Qty * UnitCost):", price);
 
         // Apply rush job premium if applicable
         if (dueDate) {
-            const daysDiff = Math.ceil((new Date(dueDate) - new Date()) / (1000 * 60 * 60 * 24));
+            const currentDate = new Date();
+            currentDate.setHours(0, 0, 0, 0); // Normalize current date to start of day for consistent comparison
+            const selectedDueDate = new Date(dueDate); // This will be UTC, add time adjustment if needed for local
+            selectedDueDate.setUTCHours(0,0,0,0); // Normalize due date
+
+            // It's usually better to compare timestamps or normalize dates carefully for diff calculation
+            const daysDiff = Math.ceil((selectedDueDate - currentDate) / (1000 * 60 * 60 * 24));
+            console.log("  DUE DATE: Value=", dueDate, "| Selected=", selectedDueDate, "| Current=", currentDate, "| DaysDiff=", daysDiff);
+
             if (daysDiff <= this.rushJobDays) {
                 price *= (1 + this.rushJobPremium / 100);
+                console.log("    Rush job premium applied. Price now:", price);
             }
         }
 
         // Update display cells
-        if (row.cells[5]) row.cells[5].textContent = volume;
-        if (row.cells[7]) row.cells[7].textContent = this.USDformatter.format(price);
+        const volumeCell = row.querySelector('[data-field="volume"]');
+        const priceCell = row.querySelector('[data-field="price"]');
+        
+        if (volumeCell) {
+            volumeCell.textContent = volume;
+            console.log("    Updated volume cell to:", volume);
+        } else {
+            console.error("    Volume cell not found for row:", row);
+        }
+        
+        if (priceCell) {
+            priceCell.textContent = this.USDformatter.format(price);
+            console.log("    Updated price cell to:", this.USDformatter.format(price));
+        } else {
+            console.error("    Price cell not found for row:", row);
+        }
+        console.log("CALCULATE ROW VALUES - END for row:", row);
     }
-
     /**
      * Update the total cost display
      */
     updateTotalCost() {
         const total = Array.from(this.dataRows.querySelectorAll('tr'))
             .reduce((sum, row) => {
-                // Price is in cell 7
-                const priceText = row.cells[7]?.textContent || '$0.00';
+                const priceCell = row.querySelector('[data-field="price"]');
+                const priceText = priceCell?.textContent || '$0.00';
                 const price = parseFloat(priceText.replace(/[^0-9.-]+/g, '')) || 0;
                 return sum + price;
             }, 0);
@@ -1197,21 +1230,19 @@ class CeramicsFiringCalculator extends HTMLElement {
     submitWorksheet() {
         try {
             const data = Array.from(this.dataRows.querySelectorAll('tr')).map(row => {
-                // Use cell indexing - reliable and simple
-                // Order: Firing Type(0), Unit Cost(1), Height(2), Width(3), Length(4), Volume(5), Quantity(6), Price(7), Due Date(8), Directions(9)
-                
-                const firingType = row.cells[0]?.querySelector('select')?.value;
-                const height = parseInt(row.cells[2]?.querySelector('input')?.value) || 0;
-                const width = parseInt(row.cells[3]?.querySelector('input')?.value) || 0;
-                const length = parseInt(row.cells[4]?.querySelector('input')?.value) || 0;
-                const quantity = parseInt(row.cells[6]?.querySelector('input')?.value) || 0;
-                const unitCostText = row.cells[1]?.textContent;
+                // Extract all data using reliable selectors - now simplified since we cleaned up data-field usage
+                const firingType = row.querySelector('[data-field="firing-type"]')?.value;
+                const height = parseInt(row.querySelector('[data-field="height"]')?.value) || 0;
+                const width = parseInt(row.querySelector('[data-field="width"]')?.value) || 0;
+                const length = parseInt(row.querySelector('[data-field="length"]')?.value) || 0;
+                const quantity = parseInt(row.querySelector('[data-field="quantity"]')?.value) || 0;
+                const unitCostText = row.querySelector('[data-field="unit-cost"]')?.textContent;
                 const unitCost = parseFloat(unitCostText?.replace(/[^0-9.-]+/g, '')) || 0;
-                const volume = parseInt(row.cells[5]?.textContent) || 0;
-                const priceText = row.cells[7]?.textContent;
+                const volume = parseInt(row.querySelector('[data-field="volume"]')?.textContent) || 0;
+                const priceText = row.querySelector('[data-field="price"]')?.textContent;
                 const totalPrice = parseFloat(priceText?.replace(/[^0-9.-]+/g, '')) || 0;
-                const dueDate = row.cells[8]?.querySelector('input')?.value || null;
-                const specialDirections = row.cells[9]?.querySelector('textarea')?.value || null;
+                const dueDate = row.querySelector('[data-field="due-date"]')?.value || null;
+                const specialDirections = row.querySelector('[data-field="directions"]')?.value || null;
                 
                 // FIXED: Use consistent naming for image data
                 const photoBuffer = row.dataset.photoBuffer || null;
@@ -1275,7 +1306,6 @@ class CeramicsFiringCalculator extends HTMLElement {
             if (item.quantity <= 0 || item.quantity > this.MAX_QUANTITY) {
                 errors.push(`Row ${rowNum}: Quantity must be 1-${this.MAX_QUANTITY} pieces`);
             }
-            if (!item.dueDate) errors.push(`Row ${rowNum}: Due date required`);
             if (!item.dueDate) errors.push(`Row ${rowNum}: Due date required`);
         });
 
