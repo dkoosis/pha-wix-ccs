@@ -832,7 +832,7 @@ class CeramicsFiringCalculator extends HTMLElement {
     _createFiringTypeCell() {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', 'Firing Type');
-        cell.setAttribute('data-field', 'firing-type');
+        // Remove data-field from cell - only put it on the select element
 
         const select = document.createElement('select');
         select.setAttribute('data-field', 'firing-type');
@@ -857,7 +857,7 @@ class CeramicsFiringCalculator extends HTMLElement {
     _createUnitCostCell() {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', 'Unit Cost');
-        cell.setAttribute('data-field', 'unit-cost');
+        cell.setAttribute('data-field', 'unit-cost'); // Keep data-field on cell for unit cost since it's not an input
         
         // Set initial unit cost based on first firing option
         const firstFiringType = Object.keys(this.FIRING_OPTIONS)[0];
@@ -877,7 +877,7 @@ class CeramicsFiringCalculator extends HTMLElement {
     _createDimensionCell(fieldName, label) {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', label);
-        cell.setAttribute('data-field', fieldName);
+        // Remove data-field from cell - only put it on the input element
 
         const input = document.createElement('input');
         input.type = 'number';
@@ -899,7 +899,7 @@ class CeramicsFiringCalculator extends HTMLElement {
     _createVolumeCell() {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', 'Volume');
-        cell.setAttribute('data-field', 'volume');
+        cell.setAttribute('data-field', 'volume'); // Keep data-field on cell for volume since it's display only
         cell.textContent = String(this.MIN_DIMENSION ** 3); // Volume of minimum dimensions (2×2×2 = 8)
         return cell;
     }
@@ -912,7 +912,7 @@ class CeramicsFiringCalculator extends HTMLElement {
     _createQuantityCell() {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', 'Quantity');
-        cell.setAttribute('data-field', 'quantity');
+        // Remove data-field from cell - only put it on the input element
 
         const input = document.createElement('input');
         input.type = 'number';
@@ -934,7 +934,7 @@ class CeramicsFiringCalculator extends HTMLElement {
     _createPriceCell() {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', 'Price');
-        cell.setAttribute('data-field', 'price');
+        cell.setAttribute('data-field', 'price'); // Keep data-field on cell for price since it's display only
         cell.textContent = this.USDformatter.format(0);
         return cell;
     }
@@ -947,7 +947,7 @@ class CeramicsFiringCalculator extends HTMLElement {
     _createDueDateCell() {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', 'Due Date');
-        cell.setAttribute('data-field', 'due-date');
+        // Remove data-field from cell - only put it on the input element
 
         // Calculate min and default dates
         const minDate = new Date();
@@ -974,7 +974,7 @@ class CeramicsFiringCalculator extends HTMLElement {
     _createDirectionsCell() {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', 'Special Directions');
-        cell.setAttribute('data-field', 'directions');
+        // Remove data-field from cell - only put it on the textarea element
 
         const textarea = document.createElement('textarea');
         textarea.setAttribute('data-field', 'directions');
@@ -993,7 +993,7 @@ class CeramicsFiringCalculator extends HTMLElement {
     _createPhotoUploadCell() {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', 'Photo Upload');
-        cell.setAttribute('data-field', 'photo-upload');
+        // Remove data-field from cell - only put it on the input element
 
         const fileContainer = document.createElement('div');
         fileContainer.className = 'file-input-container';
@@ -1043,7 +1043,7 @@ class CeramicsFiringCalculator extends HTMLElement {
     _createPreviewCell() {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', 'Preview');
-        cell.setAttribute('data-field', 'preview');
+        cell.setAttribute('data-field', 'preview'); // Keep data-field on cell for preview since it's display only
         cell.className = 'preview-cell';
         return cell;
     }
@@ -1056,7 +1056,7 @@ class CeramicsFiringCalculator extends HTMLElement {
     _createDeleteCell() {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', '');
-        cell.setAttribute('data-field', 'delete');
+        // Remove data-field from cell - only put it on the button element
 
         const deleteButton = document.createElement('button');
         deleteButton.className = 'icon-button';
@@ -1128,18 +1128,25 @@ class CeramicsFiringCalculator extends HTMLElement {
      * @param {HTMLTableRowElement} row - The table row to calculate
      */
     calculateRowValues(row) {
-        // Get input values using data attributes for reliable selection
-        const height = parseInt(row.querySelector('[data-field="height"]').value) || 0;
-        const width = parseInt(row.querySelector('[data-field="width"]').value) || 0;
-        const length = parseInt(row.querySelector('[data-field="length"]').value) || 0;
-        const quantity = parseInt(row.querySelector('[data-field="quantity"]').value) || 0;
-        const dueDate = row.querySelector('[data-field="due-date"]').value;
+        // Get input values using data attributes - now that we removed duplicates, these should work
+        const heightInput = row.querySelector('[data-field="height"]');
+        const widthInput = row.querySelector('[data-field="width"]'); 
+        const lengthInput = row.querySelector('[data-field="length"]');
+        const quantityInput = row.querySelector('[data-field="quantity"]');
+        const dueDateInput = row.querySelector('[data-field="due-date"]');
+
+        const height = parseInt(heightInput?.value) || 0;
+        const width = parseInt(widthInput?.value) || 0;
+        const length = parseInt(lengthInput?.value) || 0;
+        const quantity = parseInt(quantityInput?.value) || 0;
+        const dueDate = dueDateInput?.value;
 
         // Calculate volume
         const volume = height * width * length;
         
         // Get unit cost from display cell
-        const unitCostText = row.querySelector('[data-field="unit-cost"]').textContent;
+        const unitCostCell = row.querySelector('[data-field="unit-cost"]');
+        const unitCostText = unitCostCell?.textContent || '$0.00';
         const unitCost = parseFloat(unitCostText.replace(/[^0-9.-]+/g, '')) || 0;
         
         // Calculate base price
@@ -1154,8 +1161,11 @@ class CeramicsFiringCalculator extends HTMLElement {
         }
 
         // Update display cells
-        row.querySelector('[data-field="volume"]').textContent = volume;
-        row.querySelector('[data-field="price"]').textContent = this.USDformatter.format(price);
+        const volumeCell = row.querySelector('[data-field="volume"]');
+        const priceCell = row.querySelector('[data-field="price"]');
+        
+        if (volumeCell) volumeCell.textContent = volume;
+        if (priceCell) priceCell.textContent = this.USDformatter.format(price);
     }
 
     /**
@@ -1164,7 +1174,8 @@ class CeramicsFiringCalculator extends HTMLElement {
     updateTotalCost() {
         const total = Array.from(this.dataRows.querySelectorAll('tr'))
             .reduce((sum, row) => {
-                const priceText = row.querySelector('[data-field="price"]').textContent;
+                const priceCell = row.querySelector('[data-field="price"]');
+                const priceText = priceCell?.textContent || '$0.00';
                 const price = parseFloat(priceText.replace(/[^0-9.-]+/g, '')) || 0;
                 return sum + price;
             }, 0);
@@ -1180,19 +1191,19 @@ class CeramicsFiringCalculator extends HTMLElement {
     submitWorksheet() {
         try {
             const data = Array.from(this.dataRows.querySelectorAll('tr')).map(row => {
-                // Extract all data using reliable selectors
-                const firingType = row.querySelector('[data-field="firing-type"]').value;
-                const height = parseInt(row.querySelector('[data-field="height"]').value) || 0;
-                const width = parseInt(row.querySelector('[data-field="width"]').value) || 0;
-                const length = parseInt(row.querySelector('[data-field="length"]').value) || 0;
-                const quantity = parseInt(row.querySelector('[data-field="quantity"]').value) || 0;
-                const unitCostText = row.querySelector('[data-field="unit-cost"]').textContent;
-                const unitCost = parseFloat(unitCostText.replace(/[^0-9.-]+/g, '')) || 0;
-                const volume = parseInt(row.querySelector('[data-field="volume"]').textContent) || 0;
-                const priceText = row.querySelector('[data-field="price"]').textContent;
-                const totalPrice = parseFloat(priceText.replace(/[^0-9.-]+/g, '')) || 0;
-                const dueDate = row.querySelector('[data-field="due-date"]').value || null;
-                const specialDirections = row.querySelector('[data-field="directions"]').value || null;
+                // Extract all data using reliable selectors - now simplified since we cleaned up data-field usage
+                const firingType = row.querySelector('[data-field="firing-type"]')?.value;
+                const height = parseInt(row.querySelector('[data-field="height"]')?.value) || 0;
+                const width = parseInt(row.querySelector('[data-field="width"]')?.value) || 0;
+                const length = parseInt(row.querySelector('[data-field="length"]')?.value) || 0;
+                const quantity = parseInt(row.querySelector('[data-field="quantity"]')?.value) || 0;
+                const unitCostText = row.querySelector('[data-field="unit-cost"]')?.textContent;
+                const unitCost = parseFloat(unitCostText?.replace(/[^0-9.-]+/g, '')) || 0;
+                const volume = parseInt(row.querySelector('[data-field="volume"]')?.textContent) || 0;
+                const priceText = row.querySelector('[data-field="price"]')?.textContent;
+                const totalPrice = parseFloat(priceText?.replace(/[^0-9.-]+/g, '')) || 0;
+                const dueDate = row.querySelector('[data-field="due-date"]')?.value || null;
+                const specialDirections = row.querySelector('[data-field="directions"]')?.value || null;
                 
                 // FIXED: Use consistent naming for image data
                 const photoBuffer = row.dataset.photoBuffer || null;
