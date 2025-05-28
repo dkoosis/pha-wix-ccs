@@ -6,7 +6,8 @@ class CeramicsFiringCalculator extends HTMLElement {
         // Business rule constants
         this.MIN_DAYS_AHEAD = 1;
         this.DEFAULT_DAYS_AHEAD = 10;
-        this.MAX_DIMENSION = 55;
+        this.MIN_DIMENSION = 2;  // Minimum 2 inches for all dimensions
+        this.MAX_DIMENSION = 55; // Maximum 55 inches for all dimensions
         this.MAX_QUANTITY = 120;
         this.rushJobDays = 3;
         this.rushJobPremium = 25;
@@ -630,6 +631,7 @@ class CeramicsFiringCalculator extends HTMLElement {
             case 'height':
             case 'width':
             case 'length':
+                if (num < this.MIN_DIMENSION) return `Min ${this.MIN_DIMENSION} inches`;
                 if (num > this.MAX_DIMENSION) return `Max ${this.MAX_DIMENSION} inches`;
                 break;
             case 'quantity':
@@ -878,11 +880,11 @@ class CeramicsFiringCalculator extends HTMLElement {
 
         const input = document.createElement('input');
         input.type = 'number';
-        input.min = '1';
+        input.min = String(this.MIN_DIMENSION);
         input.max = String(this.MAX_DIMENSION);
-        input.value = '1';
+        input.value = String(this.MIN_DIMENSION); // Default to minimum dimension
         input.setAttribute('data-field', fieldName);
-        input.setAttribute('aria-label', `${label} in inches`);
+        input.setAttribute('aria-label', `${label} in inches (${this.MIN_DIMENSION}-${this.MAX_DIMENSION})`);
 
         cell.appendChild(input);
         return cell;
@@ -897,7 +899,7 @@ class CeramicsFiringCalculator extends HTMLElement {
         const cell = document.createElement('td');
         cell.setAttribute('data-label', 'Volume');
         cell.setAttribute('data-field', 'volume');
-        cell.textContent = '1'; // Initial volume (1×1×1)
+        cell.textContent = String(this.MIN_DIMENSION ** 3); // Volume of minimum dimensions (2×2×2 = 8)
         return cell;
     }
 
@@ -1241,10 +1243,18 @@ class CeramicsFiringCalculator extends HTMLElement {
             const rowNum = index + 1;
             
             if (!item.firingType) errors.push(`Row ${rowNum}: Firing type required`);
-            if (item.height <= 0) errors.push(`Row ${rowNum}: Valid height required`);
-            if (item.width <= 0) errors.push(`Row ${rowNum}: Valid width required`);
-            if (item.length <= 0) errors.push(`Row ${rowNum}: Valid length required`);
-            if (item.quantity <= 0) errors.push(`Row ${rowNum}: Valid quantity required`);
+            if (item.height < this.MIN_DIMENSION || item.height > this.MAX_DIMENSION) {
+                errors.push(`Row ${rowNum}: Height must be ${this.MIN_DIMENSION}-${this.MAX_DIMENSION} inches`);
+            }
+            if (item.width < this.MIN_DIMENSION || item.width > this.MAX_DIMENSION) {
+                errors.push(`Row ${rowNum}: Width must be ${this.MIN_DIMENSION}-${this.MAX_DIMENSION} inches`);
+            }
+            if (item.length < this.MIN_DIMENSION || item.length > this.MAX_DIMENSION) {
+                errors.push(`Row ${rowNum}: Length must be ${this.MIN_DIMENSION}-${this.MAX_DIMENSION} inches`);
+            }
+            if (item.quantity <= 0 || item.quantity > this.MAX_QUANTITY) {
+                errors.push(`Row ${rowNum}: Quantity must be 1-${this.MAX_QUANTITY} pieces`);
+            }
             if (!item.dueDate) errors.push(`Row ${rowNum}: Due date required`);
         });
 
