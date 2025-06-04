@@ -1,7 +1,6 @@
 import { Permissions, webMethod } from 'wix-web-module';
 import { contacts } from 'wix-crm.v2';
 
-// Debug function to log incoming payloads
 export const debugWebhook = webMethod(Permissions.Anyone, async (payload) => {
     console.log("=== WEBHOOK PAYLOAD RECEIVED ===");
     console.log("Timestamp:", new Date().toISOString());
@@ -16,9 +15,7 @@ export const debugWebhook = webMethod(Permissions.Anyone, async (payload) => {
     };
 });
 
-// Original contact processing function
 export const processWebhook = webMethod(Permissions.Anyone, async (payload) => {
-    // Extract contact info from payload
     const contactInfo = {
         name: {
             first: payload.firstName,
@@ -43,3 +40,4 @@ export const processWebhook = webMethod(Permissions.Anyone, async (payload) => {
         console.error("Error creating contact:", error);
         throw new Error("Failed to create contact");
     }
+});
