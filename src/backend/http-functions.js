@@ -1,31 +1,57 @@
 // src/backend/http-functions.js
 import { ok, serverError } from 'wix-http-functions';
-import { processWebhook } from 'backend/webhookHandler.web';
+import { contacts } from 'wix-crm.v2';
 
-export async function post_myWebhook(request) {
+export async function post_helloWebhook(request) {
     try {
-        console.log("=== WEBHOOK REQUEST RECEIVED ===");
-        console.log("Headers:", JSON.stringify(request.headers, null, 2));
-        console.log("Method:", request.method);
-        console.log("URL:", request.url);
+        console.log("=== HELLO WORLD WEBHOOK ===");
+        console.log("Received request at:", new Date().toISOString());
         
-        // Try to parse JSON payload
-        let payload;
+        // Parse the incoming JSON payload (even though we're not using it yet)
+        let payload = {};
         try {
             payload = await request.body.json();
+            console.log("Received payload:", JSON.stringify(payload, null, 2));
         } catch (jsonError) {
-            console.log("JSON parsing failed, trying as text...");
-            const textBody = await request.body.text();
-            console.log("Raw body:", textBody);
-            return serverError({ message: "Invalid JSON payload", rawBody: textBody });
+            console.log("No valid JSON payload, proceeding anyway");
         }
         
-        const result = await processWebhook(payload);
-        console.log("Webhook processed successfully");
-        return ok(result);
+        // Create hardcoded "John Smith" contact
+        const contactInfo = {
+            name: {
+                first: "John",
+                last: "Smith"
+            },
+            emails: {
+                items: [
+                    { email: "john.smith@example.com" }
+                ]
+            },
+            phones: {
+                items: [
+                    { phone: "+1-555-0123" }
+                ]
+            }
+        };
+
+        // Create the contact
+        const newContact = await contacts.createContact(contactInfo);
+        console.log("Contact created successfully:", newContact.contact._id);
+        
+        return ok({
+            status: "success",
+            message: "Hello World! John Smith contact created",
+            contactId: newContact.contact._id,
+            timestamp: new Date().toISOString(),
+            receivedPayload: payload
+        });
         
     } catch (error) {
-        console.error("Error handling webhook:", error);
-        return serverError({ message: error.message, stack: error.stack });
+        console.error("Error in hello webhook:", error);
+        return serverError({ 
+            status: "error",
+            message: error.message, 
+            timestamp: new Date().toISOString()
+        });
     }
 }
