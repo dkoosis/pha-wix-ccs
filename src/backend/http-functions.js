@@ -1,15 +1,13 @@
-// src/backend/http-functions.js
 import { ok, serverError } from 'wix-http-functions';
 import { contacts } from 'wix-crm.v2';
+import { elevate } from 'wix-auth'; // 1. Import 'elevate'
 
-// Increment this version number with each new deployment to test.
-const DEPLOYMENT_VERSION = "1.0";
-
+// This is the function from your original file, now with elevated permissions
 export async function post_helloWebhook(request) {
     try {
-        console.log(`=== HELLO WORLD WEBHOOK (Version: ${DEPLOYMENT_VERSION}) ===`);
+        console.log("=== HELLO WORLD WEBHOOK ===");
         console.log("Received request at:", new Date().toISOString());
-
+        
         let payload = {};
         try {
             payload = await request.body.json();
@@ -17,7 +15,7 @@ export async function post_helloWebhook(request) {
         } catch (jsonError) {
             console.log("No valid JSON payload, proceeding anyway");
         }
-
+        
         const contactInfo = {
             name: {
                 first: "John",
@@ -35,24 +33,27 @@ export async function post_helloWebhook(request) {
             }
         };
 
-        const newContact = await contacts.createContact(contactInfo);
+        // 2. Create an elevated version of the createContact function
+        const elevatedCreateContact = elevate(contacts.createContact);
+        
+        // 3. Call the elevated function
+        const newContact = await elevatedCreateContact(contactInfo);
+        
         console.log("Contact created successfully:", newContact.contact._id);
-
+        
         return ok({
             status: "success",
             message: "Hello World! John Smith contact created",
-            version: DEPLOYMENT_VERSION, // You can check for this in the response
             contactId: newContact.contact._id,
             timestamp: new Date().toISOString(),
             receivedPayload: payload
         });
-
+        
     } catch (error) {
         console.error("Error in hello webhook:", error);
-        return serverError({
+        return serverError({ 
             status: "error",
-            message: error.message,
-            version: DEPLOYMENT_VERSION,
+            message: error.message, 
             timestamp: new Date().toISOString()
         });
     }
