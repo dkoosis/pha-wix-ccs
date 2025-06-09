@@ -210,3 +210,52 @@ export async function post_helloWebhook(request) {
         });
     }
 }
+
+// --- ADD THIS ENTIRE FUNCTION FOR TESTING ---
+
+export async function get_testMemberCreation(request) {
+    const WIX_REST_API_KEY_NAME = "MEMBER_MANAGEMENT_API_KEY";
+    const WIX_CREATE_MEMBER_API_URL = "https://www.wixapis.com/members/v1/members";
+
+    console.log("Running minimal test case for Create Member API...");
+
+    // IMPORTANT: Replace this with a REAL contactId from your logs
+    // that you know is NOT already a site member.
+    const testContactId = "d74f44d8-f412-4c9d-9306-6d688dde328d"; 
+
+    try {
+        const wixApiKey = await getSecret(WIX_REST_API_KEY_NAME);
+        if (!wixApiKey) {
+            const secretErrorMsg = `TEST FAILED: Secret named '${WIX_REST_API_KEY_NAME}' not found.`;
+            console.error(secretErrorMsg);
+            return serverError({ body: secretErrorMsg });
+        }
+
+        const createMemberBody = {
+            member: { contactId: testContactId }
+        };
+
+        const fetchOptions = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': wixApiKey },
+            body: JSON.stringify(createMemberBody)
+        };
+        
+        console.log("Making fetch call to:", WIX_CREATE_MEMBER_API_URL);
+        const response = await fetch(WIX_CREATE_MEMBER_API_URL, fetchOptions);
+        const responseText = await response.text();
+        
+        console.log(`API response status: ${response.status}`);
+        console.log("API response body:", responseText);
+
+        if (response.ok) {
+            return ok({ body: `SUCCESS: ${responseText}` });
+        } else {
+            return serverError({ body: `FAILURE: Status ${response.status}, Body: ${responseText}` });
+        }
+
+    } catch (error) {
+        console.error("TEST FAILED with error:", error.message);
+        return serverError({ body: `TEST FAILED: ${error.message}` });
+    }
+}
