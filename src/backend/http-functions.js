@@ -35,10 +35,14 @@ async function findOrCreateContact(payload) {
  * Finds a site member using their contact ID. If the member does not exist,
  * it uses the Wix REST API to send a site membership invitation.
  */
+/**
+ * Finds a site member using their contact ID. If the member does not exist,
+ * it uses the Wix REST API to send a site membership invitation.
+ */
 async function findMemberByContactId(contactId, email) {
-    // --- This is the new REST API logic ---
-    
-    // CORRECTED: Added elevate() to ensure permissions on the query
+    // CORRECTED: The REST API endpoint for inviting members
+    const WIX_INVITE_API_URL = "https://www.wixapis.com/members/v1/invites";
+
     let memberQuery = await elevate(wixData.query)(MEMBERS_COLLECTION_ID)
         .eq("contactId", contactId)
         .find();
@@ -51,9 +55,10 @@ async function findMemberByContactId(contactId, email) {
         console.log(`Contact is not a member. Sending invitation to ${email} via REST API...`);
         const wixApiKey = await getSecret(WIX_REST_API_KEY_NAME);
 
+        // CORRECTED: The request body for this endpoint invites by contactId and assigns a role.
         const requestBody = {
-            "email": email,
-            "role": "MEMBER"
+            "contactId": contactId,
+            "roles": [{ "name": "Member" }] // Assigns the default "Member" role
         };
 
         const fetchOptions = {
@@ -74,9 +79,6 @@ async function findMemberByContactId(contactId, email) {
         
         console.log("Invitation sent successfully. Finding new pending member record...");
         
-        // After the invitation is sent, a pending member record is created.
-        // We now query again to get the ID of that new pending member.
-        // CORRECTED: Added elevate() here as well for the second query.
         const newMemberQuery = await elevate(wixData.query)(MEMBERS_COLLECTION_ID)
             .eq("contactId", contactId)
             .find();
