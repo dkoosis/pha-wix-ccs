@@ -36,7 +36,10 @@ async function findOrCreateContact(payload) {
  * it uses the Wix REST API to send a site membership invitation.
  */
 async function findMemberByContactId(contactId, email) {
-    let memberQuery = await wixData.query(MEMBERS_COLLECTION_ID)
+    // --- This is the new REST API logic ---
+    
+    // CORRECTED: Added elevate() to ensure permissions on the query
+    let memberQuery = await elevate(wixData.query)(MEMBERS_COLLECTION_ID)
         .eq("contactId", contactId)
         .find();
     
@@ -45,13 +48,12 @@ async function findMemberByContactId(contactId, email) {
         console.log(`Found existing Member ID: ${member._id}`);
         return { memberId: member._id, memberData: member };
     } else {
-        // --- This is the new REST API logic ---
         console.log(`Contact is not a member. Sending invitation to ${email} via REST API...`);
         const wixApiKey = await getSecret(WIX_REST_API_KEY_NAME);
 
         const requestBody = {
             "email": email,
-            "role": "MEMBER" // Standard role for a site member
+            "role": "MEMBER"
         };
 
         const fetchOptions = {
@@ -74,7 +76,8 @@ async function findMemberByContactId(contactId, email) {
         
         // After the invitation is sent, a pending member record is created.
         // We now query again to get the ID of that new pending member.
-        const newMemberQuery = await wixData.query(MEMBERS_COLLECTION_ID)
+        // CORRECTED: Added elevate() here as well for the second query.
+        const newMemberQuery = await elevate(wixData.query)(MEMBERS_COLLECTION_ID)
             .eq("contactId", contactId)
             .find();
         
@@ -87,8 +90,6 @@ async function findMemberByContactId(contactId, email) {
         }
     }
 }
-
-// --- The following functions remain correct and need no changes ---
 
 function buildApplicationData(payload, memberId) {
     // ... (This function is complete and correct from our previous version)
