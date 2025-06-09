@@ -53,8 +53,7 @@ async function findOrCreateMember(contactId, email) {
 
         const createMemberBody = {
             member: { 
-                contactId: contactId,
-                loginEmail: email
+                contactId: contactId
             }
         };
 
