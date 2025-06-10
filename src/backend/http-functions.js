@@ -205,7 +205,7 @@ export async function get_testMemberCreation(request) {
 
     // IMPORTANT: Replace this with a REAL contactId from your logs
     // that you know is NOT already a site member.
-    const testContactId = "REPLACE_WITH_A_REAL_CONTACT_ID"; 
+    const testContactId = "861a9d91-4875-442a-a23c-7413affaac86"; 
 
     try {
         const wixApiKey = await getSecret(REST_API_KEY_NAME);
