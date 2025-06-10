@@ -142,7 +142,6 @@ export async function get_testMemberCreation(request) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                // CORRECTED: Added "Bearer " prefix to the API Key
                 'Authorization': `Bearer ${wixApiKey}`,
                 'wix-account-id': wixAccountIdKey
             },
