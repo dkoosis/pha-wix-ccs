@@ -8,8 +8,11 @@ import wixData from 'wix-data';
 import { fetch } from 'wix-fetch';
 
 // --- Constants ---
+// Using the exact secret names from your Wix Secrets Manager
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
 const WIX_REST_API_KEY_NAME = "MEMBER_MANAGEMENT_API_KEY";
+const WIX_ACCOUNT_ID_KEY_NAME = "ACCOUNT_API_HEADER";
+
 const MEMBERS_COLLECTION_ID = "Members/PrivateMembersData";
 const STUDIO_APPLICATIONS_COLLECTION_ID = "Studio Applications";
 const WIX_CREATE_MEMBER_API_URL = "https://www.wixapis.com/members/v1/members";
@@ -47,21 +50,20 @@ async function findOrCreateMember(contactId, email) {
         console.log(`Found existing Member ID: ${member._id}`);
         return { memberId: member._id, memberData: member };
     } else {
-        // Step 1: Create the member using the Wix REST API
         console.log(`Contact is not a member. Creating member for ${email} via REST API...`);
         const wixApiKey = await getSecret(WIX_REST_API_KEY_NAME);
+        const wixAccountHeader = await getSecret(WIX_ACCOUNT_ID_KEY_NAME);
 
         const createMemberBody = {
-            member: { 
-                contactId: contactId
-            }
+            member: { contactId: contactId }
         };
 
         const fetchOptions = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': wixApiKey
+                'Authorization': wixApiKey,
+                'wix-account-id': wixAccountHeader
             },
             body: JSON.stringify(createMemberBody)
         };
@@ -76,7 +78,6 @@ async function findOrCreateMember(contactId, email) {
         const newMember = responseData.member;
         console.log(`Member created successfully with ID: ${newMember.id}`);
         
-        // Step 2: Send the set password email to the new member.
         try {
             await elevate(authentication.sendSetPasswordEmail)(email);
             console.log(`Password setup email sent to ${email}`);
@@ -84,7 +85,6 @@ async function findOrCreateMember(contactId, email) {
              console.warn(`Member created but failed to send password email: ${emailError.message}`);
         }
         
-        // Use the new member object returned from the API directly.
         return { memberId: newMember.id, memberData: newMember };
     }
 }
@@ -135,7 +135,6 @@ function buildApplicationData(payload, memberId) {
 
 /**
  * Updates the member record with a reference to the new application.
- * This is a non-blocking operation for robustness.
  * @param {string} memberId The ID of the member to update.
  * @param {object} memberData The original data record of the member.
  * @param {string} applicationId The ID of the newly created application.
@@ -164,21 +163,18 @@ async function updateMemberWithApplication(memberId, memberData, applicationId) 
  */
 export async function post_helloWebhook(request) {
     try {
-        // 1. Authenticate Request
         const receivedApiKey = request.headers['x-api-key'];
         const storedApiKey = await getSecret(FILLOUT_API_KEY_NAME);
         if (receivedApiKey !== storedApiKey) {
             return forbidden({ body: "Invalid API Key" });
         }
 
-        // 2. Get and Validate Payload
         const payload = await request.body.json();
         if (!payload.email) {
             return serverError({ body: "Email is required in the payload" });
         }
         console.log("Processing studio application for email:", payload.email);
 
-        // 3. Process Data using Helper Functions
         const contactId = await findOrCreateContact(payload);
         const { memberId, memberData } = await findOrCreateMember(contactId, payload.email);
         const applicationData = buildApplicationData(payload, memberId);
@@ -186,18 +182,15 @@ export async function post_helloWebhook(request) {
         const newApplication = await wixData.insert(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData);
         console.log("New Studio Application record created with ID:", newApplication._id);
 
-        await updateMemberWithApplication(memberId, memberData, newApplication._id);
+        if (memberData) {
+            await updateMemberWithApplication(memberId, memberData, newApplication._id);
+        }
 
-        // 4. Return Success Response
         return ok({
             body: {
                 status: "success",
                 message: "Studio application processed successfully. Set password email sent if required.",
-                data: {
-                    contactId,
-                    memberId,
-                    applicationId: newApplication._id
-                }
+                data: { contactId, memberId, applicationId: newApplication._id }
             }
         });
     } catch (error) {
@@ -211,22 +204,22 @@ export async function post_helloWebhook(request) {
     }
 }
 
-// --- ADD THIS ENTIRE FUNCTION FOR TESTING ---
-
+/**
+ * Standalone test function for debugging the Create Member REST API call.
+ */
 export async function get_testMemberCreation(request) {
-    const WIX_REST_API_KEY_NAME = "MEMBER_MANAGEMENT_API_KEY";
-    const WIX_CREATE_MEMBER_API_URL = "https://www.wixapis.com/members/v1/members";
-
     console.log("Running minimal test case for Create Member API...");
 
     // IMPORTANT: Replace this with a REAL contactId from your logs
     // that you know is NOT already a site member.
-    const testContactId = "fbf7d061-256d-4b62-9218-1ed14224676c"; 
+    const testContactId = "REPLACE_WITH_A_REAL_CONTACT_ID"; 
 
     try {
         const wixApiKey = await getSecret(WIX_REST_API_KEY_NAME);
-        if (!wixApiKey) {
-            const secretErrorMsg = `TEST FAILED: Secret named '${WIX_REST_API_KEY_NAME}' not found.`;
+        const wixAccountHeader = await getSecret(WIX_ACCOUNT_ID_KEY_NAME);
+
+        if (!wixApiKey || !wixAccountHeader) {
+            const secretErrorMsg = `TEST FAILED: One or more required secrets were not found.`;
             console.error(secretErrorMsg);
             return serverError({ body: secretErrorMsg });
         }
@@ -237,7 +230,11 @@ export async function get_testMemberCreation(request) {
 
         const fetchOptions = {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': wixApiKey },
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': wixApiKey,
+                'wix-account-id': wixAccountHeader
+            },
             body: JSON.stringify(createMemberBody)
         };
         
