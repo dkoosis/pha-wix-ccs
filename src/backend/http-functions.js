@@ -148,12 +148,12 @@ export async function post_helloWebhook(request) {
         const { memberId, memberData } = await findOrCreateMember(contactId, payload.email);
         const applicationData = buildApplicationData(payload, memberId);
 
-        const newApplication = await wixData.insert(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData);
+        const newApplication = await wixData.insert(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData, {suppressAuth: true});
         console.log("New Studio Application record created with ID:", newApplication._id);
 
-        if (memberData) {
-            await updateMemberWithApplication(memberId, memberData, newApplication._id);
-        }
+        // if (memberData) {
+        //     await updateMemberWithApplication(memberId, memberData, newApplication._id);
+        // }
 
         return ok({
             body: {
