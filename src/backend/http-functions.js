@@ -40,51 +40,26 @@ async function findOrCreateContact(payload) {
  * @returns {Promise<{memberId: string, memberData: object}>} An object containing the new member's ID and data.
  */
 async function findOrCreateMember(contactId, email) {
+    let member;
     const memberQuery = await elevate(wixData.query)(MEMBERS_COLLECTION_ID)
         .eq("contactId", contactId)
         .find();
 
     if (memberQuery.items.length > 0) {
-        const member = memberQuery.items[0];
+        member = memberQuery.items[0];
         console.log(`Found existing Member ID: ${member._id}`);
         return { memberId: member._id, memberData: member };
     } else {
         try {
-            const { member } = await authentication.register(email, "password123");
-            // console.log(`Contact is not a member. Creating member for ${email} via REST API...`);
-            // const wixApiKey = await getSecret(REST_API_KEY_NAME);
-            // const wixAccountHeader = await getSecret(ACCOUNT_HEADER_NAME);
-
-            // const createMemberBody = {
-            //     member: { contactId: contactId }
-            // };
-
-            // const fetchOptions = {
-            //     method: 'POST',
-            //     headers: {
-            //         'Content-Type': 'application/json',
-            //         'Authorization': `Bearer ${wixApiKey}`,
-            //         'wix-account-id': wixAccountHeader
-            //     },
-            //     body: JSON.stringify(createMemberBody)
-            // };
-
-            // const response = await fetch(WIX_CREATE_MEMBER_API_URL, fetchOptions);
-            // if (!response.ok) {
-            //     const errorText = await response.text();
-            //     throw new Error(`Failed to create member via REST API: ${errorText}`);
-            // }
-
-            // const responseData = await response.json();
-            // const newMember = responseData.member;
-            //console.log(`Member created successfully with ID: ${newMember.id}`);
-
-
-            await elevate(authentication.sendSetPasswordEmail)(email);
+            const registerMemberResult = await authentication.register(email, "password123");
+            member = registerMemberResult.member;
+            console.log(`Created new member with ID: ${member._id}`);
+            await authentication.sendSetPasswordEmail(email);
             console.log(`Password setup email sent to ${email}`);
             return { memberId: member._id, memberData: member };
         } catch (error) {
-            console.warn(`Failed to create member for contact ID ${contactId}:`, error.message);
+            console.warn(`Error creating member ${contactId}:`, error.message);
+            if(member) return { memberId: member._id, memberData: member };
         }
     }
 }
