@@ -37,7 +37,7 @@ $w.onReady(function () {
     })
 
 });
-=======
+/*
  * This code gets called when the user clicks the Submit Worksheet button on the
  * Custom Element "firing worksheet"
  * The code fetches the worksheet data and adds each row as a lineitem.
