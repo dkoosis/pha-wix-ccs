@@ -49,4 +49,3 @@ $w.onReady(function () {
     }
   });
 });
->>>>>>> d1edb2a (firing commit)
