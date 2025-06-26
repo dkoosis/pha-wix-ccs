@@ -33,13 +33,6 @@ const APP_ID = "97ed05e3-04ed-4095-af45-90587bfed9f0";
 
 export const getCatalogItems = async (options, context) => {
     const { catalogReferences } = options;
-<<<<<<< HEAD
-    //console.log("option", options);
-    //console.log("catalog references", catalogReferences);
-=======
-console.log("option", options);
-    console.log("catalog references", catalogReferences);
->>>>>>> d1edb2a (firing commit)
 
     return {
         options,
