@@ -55,8 +55,8 @@ export async function post_helloCORS(request) {
 export async function post_hello(request) {
 
     console.log("post_helloWebhook was reached!");
-    return ok({ "body": { "status": "connected" } });
-  try {
+
+    try {
     // 1. Get the body of the request
     const body = await request.body.json();
 
