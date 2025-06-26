@@ -33,7 +33,7 @@ export function options_helloWebhook(request) {
 
 // --- UPDATED POST HANDLER ---
 // The simplified version of your original function
-export async function post_helloWebhook(request) {
+export async function post_helloCORS(request) {
   console.log("post_helloWebhook was reached!");
 
   // Return a successful response WITH the CORS header
@@ -56,7 +56,6 @@ export async function post_hello(request) {
 
     console.log("post_helloWebhook was reached!");
     return ok({ "body": { "status": "connected" } });
-/*
   try {
     // 1. Get the body of the request
     const body = await request.body.json();
@@ -80,7 +79,7 @@ export async function post_hello(request) {
       "body": { "error": "Could not parse JSON body." }
     });
   }
-    */
+
 }
 
 
