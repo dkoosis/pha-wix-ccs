@@ -17,6 +17,52 @@ const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
 const WIX_CREATE_MEMBER_API_URL = "https://www.wixapis.com/members/v1/members";
 
 /**
+ * Main webhook handler for form submissions.
+ */
+export async function post_helloWebhook(request) {
+    try {
+        const receivedApiKey = request.headers['x-api-key'];
+        const storedApiKey = await getSecret(FILLOUT_API_KEY_NAME);
+        if (receivedApiKey !== storedApiKey) {
+            return forbidden({ body: "Invalid API Key" });
+        }
+
+        const payload = await request.body.json();
+        if (!payload.email) {
+            return serverError({ body: "Email is required in the payload" });
+        }
+        console.log("Processing studio application for email:", payload.email);
+
+        const contactId = await findOrCreateContact(payload);
+        const { memberId, memberData } = await findOrCreateMember(contactId, payload.email);
+        const applicationData = buildApplicationData(payload, memberId);
+
+        const newApplication = await wixData.insert(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData, {suppressAuth: true});
+        console.log("New Studio Application record created with ID:", newApplication._id);
+
+        // if (memberData) {
+        //     await updateMemberWithApplication(memberId, memberData, newApplication._id);
+        // }
+
+        return ok({
+            body: {
+                status: "success",
+                message: "Studio application processed successfully. Set password email sent if required.",
+                data: { contactId, memberId, applicationId: newApplication._id }
+            }
+        });
+    } catch (error) {
+        console.error("Error in webhook:", error.message);
+        return serverError({
+            body: {
+                status: "error",
+                message: `Webhook processing failed: ${error.message}`
+            }
+        });
+    }
+}
+
+/**
  * Finds a contact by email or creates/appends one.
  * @param {object} payload - The webhook payload from the form submission.
  * @returns {Promise<string>} The ID of the found or created contact.
@@ -64,7 +110,7 @@ async function findOrCreateMember(contactId, email) {
 }
 
 /**
- * Builds the complete application data object to be inserted into the CMS.
+ * Builds the complete membership application data object to be inserted into the CMS.
  */
 function buildApplicationData(payload, memberId) {
     const applicationData = {
@@ -123,52 +169,6 @@ async function updateMemberWithApplication(memberId, memberData, applicationId) 
         console.log("Updated member record with new application reference.");
     } catch (memberUpdateError) {
         console.warn("Could not update member record:", memberUpdateError.message);
-    }
-}
-
-/**
- * Main webhook handler for form submissions.
- */
-export async function post_helloWebhook(request) {
-    try {
-        const receivedApiKey = request.headers['x-api-key'];
-        const storedApiKey = await getSecret(FILLOUT_API_KEY_NAME);
-        if (receivedApiKey !== storedApiKey) {
-            return forbidden({ body: "Invalid API Key" });
-        }
-
-        const payload = await request.body.json();
-        if (!payload.email) {
-            return serverError({ body: "Email is required in the payload" });
-        }
-        console.log("Processing studio application for email:", payload.email);
-
-        const contactId = await findOrCreateContact(payload);
-        const { memberId, memberData } = await findOrCreateMember(contactId, payload.email);
-        const applicationData = buildApplicationData(payload, memberId);
-
-        const newApplication = await wixData.insert(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData, {suppressAuth: true});
-        console.log("New Studio Application record created with ID:", newApplication._id);
-
-        // if (memberData) {
-        //     await updateMemberWithApplication(memberId, memberData, newApplication._id);
-        // }
-
-        return ok({
-            body: {
-                status: "success",
-                message: "Studio application processed successfully. Set password email sent if required.",
-                data: { contactId, memberId, applicationId: newApplication._id }
-            }
-        });
-    } catch (error) {
-        console.error("Error in webhook:", error.message);
-        return serverError({
-            body: {
-                status: "error",
-                message: `Webhook processing failed: ${error.message}`
-            }
-        });
     }
 }
 
