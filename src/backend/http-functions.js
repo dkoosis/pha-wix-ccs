@@ -17,6 +17,37 @@ const MEMBERS_COLLECTION_ID = "Members/PrivateMembersData";
 const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
 const WIX_CREATE_MEMBER_API_URL = "https://www.wixapis.com/members/v1/members";
 
+// CORS issues??
+// --- NEW PREFLIGHT HANDLER ---
+// Handles the OPTIONS request from the client
+export function options_helloWebhook(request) {
+  // Immediately respond with OK and the necessary CORS headers
+  return ok({
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, x-api-key"
+    }
+  });
+}
+
+// --- UPDATED POST HANDLER ---
+// The simplified version of your original function
+export async function post_helloWebhook(request) {
+  console.log("post_helloWebhook was reached!");
+
+  // Return a successful response WITH the CORS header
+  return ok({
+    body: {
+      "status": "connected"
+    },
+    headers: {
+      "Access-Control-Allow-Origin": "*"
+    }
+  });
+}
+
+
 
 /**
  * Hello, world. With a POST and JSON body. To test connectivity.
