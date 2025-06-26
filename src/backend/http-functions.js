@@ -22,9 +22,14 @@ const WIX_CREATE_MEMBER_API_URL = "https://www.wixapis.com/members/v1/members";
  * Hello, world. With a POST and JSON body. To test connectivity.
  */
 export async function post_hello(request) {
+
+    console.log("post_helloWebhook was reached!");
+    return ok({ "body": { "status": "connected" } });
+/*
   try {
     // 1. Get the body of the request
     const body = await request.body.json();
+
     const name = body.name || "World"; // Use "World" as a default
 
     console.log(`post_hello was called with the name: ${name}`);
@@ -44,6 +49,7 @@ export async function post_hello(request) {
       "body": { "error": "Could not parse JSON body." }
     });
   }
+    */
 }
 
 
