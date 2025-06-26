@@ -12,77 +12,9 @@ import { fetch } from 'wix-fetch';
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
 const REST_API_KEY_NAME = "MEMBER_MANAGEMENT_API_KEY";
 const ACCOUNT_HEADER_NAME = "ACCOUNT_API_HEADER";
-
 const MEMBERS_COLLECTION_ID = "Members/PrivateMembersData";
 const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
 const WIX_CREATE_MEMBER_API_URL = "https://www.wixapis.com/members/v1/members";
-
-// CORS issues??
-// --- NEW PREFLIGHT HANDLER ---
-// Handles the OPTIONS request from the client
-export function options_helloWebhook(request) {
-  // Immediately respond with OK and the necessary CORS headers
-  return ok({
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, x-api-key"
-    }
-  });
-}
-
-// --- UPDATED POST HANDLER ---
-// The simplified version of your original function
-export async function post_helloCORS(request) {
-  console.log("post_helloWebhook was reached!");
-
-  // Return a successful response WITH the CORS header
-  return ok({
-    body: {
-      "status": "connected"
-    },
-    headers: {
-      "Access-Control-Allow-Origin": "*"
-    }
-  });
-}
-
-
-
-/**
- * Hello, world. With a POST and JSON body. To test connectivity.
- */
-export async function post_hello(request) {
-
-    console.log("post_helloWebhook was reached!");
-
-    try {
-    // 1. Get the body of the request
-    const body = await request.body.json();
-
-    const name = body.name || "World"; // Use "World" as a default
-
-    console.log(`post_hello was called with the name: ${name}`);
-
-    // 2. Create a success response
-    const response = {
-      "headers": { "Content-Type": "application/json" },
-      "body": { "message": `Hello, ${name}` }
-    };
-
-    return ok(response);
-
-  } catch (error) {
-    console.error("Error in post_hello:", error);
-    // 3. Create an error response if something goes wrong
-    return badRequest({
-      "body": { "error": "Could not parse JSON body." }
-    });
-  }
-
-}
-
-
 
 /**
  * Finds a contact by email or creates/appends one.
