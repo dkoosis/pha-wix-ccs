@@ -1,7 +1,7 @@
 // --- Imports ---
 import { contacts } from 'wix-crm-backend';
 import { authentication } from 'wix-members-backend';
-import { ok, serverError, forbidden } from 'wix-http-functions';
+import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
 import { elevate } from 'wix-auth';
 import { getSecret } from 'wix-secrets-backend';
 import wixData from 'wix-data';
@@ -16,6 +16,37 @@ const ACCOUNT_HEADER_NAME = "ACCOUNT_API_HEADER";
 const MEMBERS_COLLECTION_ID = "Members/PrivateMembersData";
 const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
 const WIX_CREATE_MEMBER_API_URL = "https://www.wixapis.com/members/v1/members";
+
+
+/**
+ * Hello, world. With a POST and JSON body. To test connectivity.
+ */
+export async function post_hello(request) {
+  try {
+    // 1. Get the body of the request
+    const body = await request.body.json();
+    const name = body.name || "World"; // Use "World" as a default
+
+    console.log(`post_hello was called with the name: ${name}`);
+
+    // 2. Create a success response
+    const response = {
+      "headers": { "Content-Type": "application/json" },
+      "body": { "message": `Hello, ${name}` }
+    };
+
+    return ok(response);
+
+  } catch (error) {
+    console.error("Error in post_hello:", error);
+    // 3. Create an error response if something goes wrong
+    return badRequest({
+      "body": { "error": "Could not parse JSON body." }
+    });
+  }
+}
+
+
 
 /**
  * Finds a contact by email or creates/appends one.
