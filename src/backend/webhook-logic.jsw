@@ -1,5 +1,5 @@
 // src/backend/webhook-logic.jsw
-// 1211p
+// SIMPLIFIED FIX - Just fix the actual error
 
 import { contacts } from 'wix-crm-backend';
 import { register, sendSetPasswordEmail, queryMembers } from 'wix-members-backend';
@@ -29,7 +29,7 @@ export async function findOrCreateContact(payload) {
  * Finds existing site member or creates a new one with a welcome email.
  */
 export async function findOrCreateMember(contactId, email) {
-    // FIX: Changed elevation pattern from elevate(query)() to elevate(query.find)()
+    // Check if member exists by contactId
     const memberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
         .eq("contactId", contactId)
         .find)();
@@ -58,20 +58,23 @@ export async function findOrCreateMember(contactId, email) {
         } catch (error) {
             console.error(`Error creating member for contact ${contactId}:`, error);
             
-            // Handle case where email already exists
-            if (error.message && error.message.includes('MEMBER_EMAIL_EXISTS')) {
-                // FIX: Same elevation pattern fix here
+            // SIMPLIFIED FIX: Just check if error message contains MEMBER_EMAIL_EXISTS
+            const errorMsg = error.message || error.toString() || '';
+            
+            if (errorMsg.includes('MEMBER_EMAIL_EXISTS')) {
+                // Try to find existing member by email
                 const existingMemberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
                     .eq("loginEmail", email)
                     .find)();
                     
-                if(existingMemberQuery.items.length > 0){
+                if (existingMemberQuery.items.length > 0) {
                     const existingMember = existingMemberQuery.items[0];
                     console.log(`Member with email ${email} already exists. Returning existing member ID: ${existingMember._id}.`);
                     return { memberId: existingMember._id, memberData: existingMember };
                 }
             }
-            throw new Error(`Failed to create member account: ${error.message}`);
+            
+            throw new Error(`Failed to create member account: ${errorMsg}`);
         }
     }
 }
