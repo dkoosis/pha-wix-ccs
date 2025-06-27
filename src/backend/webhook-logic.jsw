@@ -1,0 +1,169 @@
+// src/backend/webhook-logic.jsw
+// This file contains the core business logic for the webhook.
+// It is imported by both http-functions.js and testing.jsw.
+
+import { contacts } from 'wix-crm-backend';
+import { authentication } from 'wix-members-backend';
+import { elevate } from 'wix-auth';
+import wixData from 'wix-data';
+
+// Collection IDs
+const MEMBERS_COLLECTION_ID = "Members/PrivateMembersData";
+const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
+
+/**
+ * Finds or creates a CRM contact record.
+ * Exported for testing and use in the main webhook.
+ * * @param {object} payload - Application form data
+ * @returns {Promise<string>} Contact ID (existing or newly created)
+ */
+export async function findOrCreateContact(payload) {
+    const contactInfo = {
+        name: { first: payload.firstName || "", last: payload.lastName || "" },
+        emails: [{ tag: 'MAIN', email: payload.email }],
+        phones: payload.phone ? [{ tag: 'MOBILE', phone: payload.phone }] : [],
+    };
+    
+    // CORRECTED: The contactInfo object should be the first argument.
+    const result = await elevate(contacts.appendOrCreateContact)(contactInfo);
+    console.log(`Processed contact with ID: ${result.contactId}.`);
+    return result.contactId;
+}
+
+/**
+ * Finds existing site member or creates a new one with a welcome email.
+ * Exported for testing and use in the main webhook.
+ * * @param {string} contactId - CRM contact ID to link with member
+ * @param {string} email - Email for member registration
+ * @returns {Promise<{memberId: string, memberData: object | null}>} Member details
+ */
+export async function findOrCreateMember(contactId, email) {
+    // Check for existing member by contactId
+    const memberQuery = await elevate(wixData.query)(MEMBERS_COLLECTION_ID)
+        .eq("contactId", contactId)
+        .find();
+
+    if (memberQuery.items.length > 0) {
+        const member = memberQuery.items[0];
+        console.log(`Found existing Member ID: ${member._id}`);
+        return { memberId: member._id, memberData: member };
+    } else {
+        try {
+            // Elevate the entire registration process
+            const registerMemberResult = await elevate(authentication.register)(email, "password123", {
+                contactInfo: {
+                    contactId: contactId
+                }
+            });
+            const member = registerMemberResult.member;
+            console.log(`Created new member with ID: ${member._id}`);
+            
+            // Send password setup email
+            await elevate(authentication.sendSetPasswordEmail)(email);
+            console.log(`Password setup email sent to ${email}`);
+            return { memberId: member._id, memberData: member };
+        } catch (error) {
+            console.error(`Error creating member for contact ${contactId}:`, error);
+            // Handle race condition where email exists but wasn't found by contactId
+            if (error.message && error.message.includes('MEMBER_EMAIL_EXISTS')) {
+                 const existingMemberQuery = await elevate(wixData.query)("Members/PrivateMembersData").eq("loginEmail", email).find();
+                 if(existingMemberQuery.items.length > 0){
+                    const existingMember = existingMemberQuery.items[0];
+                    console.log(`Member with email ${email} already exists. Returning existing member ID: ${existingMember._id}.`);
+                    return { memberId: existingMember._id, memberData: existingMember };
+                 }
+            }
+            throw new Error(`Failed to create member account: ${error.message}`);
+        }
+    }
+}
+
+/**
+ * Transforms raw form data into a structured application record.
+ * Exported for testing and use in the main webhook.
+ * * @param {object} payload - Raw form submission data
+ * @param {string} memberId - Associated member ID for linking
+ * @returns {object} Cleaned application data ready for database
+ */
+export function buildApplicationData(payload, memberId) {
+    const applicationData = {
+        applicant: memberId,
+        applicationID: payload.applicationID,
+        email: payload.email,
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        applicationStage: payload.applicationStage || "Applied",
+        applicantStatus: payload.applicantStatus || "applicant",
+        hasExperience: payload.hasExperience,
+        experienceDescription: payload.experienceDescription,
+        hasTechniques: payload.hasTechniques,
+        practiceDescription: payload.practiceDescription,
+        knowsSafety: payload.knowsSafety,
+        safetyDescription: payload.safetyDescription,
+        purchaseIntention: payload.purchaseIntention,
+        selfID: payload.selfID,
+        communityCommitment: payload.communityCommitment,
+        communityInterest: payload.communityInterest,
+        phone: payload.phone,
+        address: payload.address,
+        website: payload.website,
+        instagram: payload.instagram,
+        source: payload.source,
+        questions: payload.questions,
+        submissionDate: new Date(),
+        status: "pending",
+        formSource: "fillout_form",
+        filloutURL: payload.filloutURL
+    };
+
+    // Clean undefined/null fields to avoid database errors
+    Object.keys(applicationData).forEach(key => {
+        if (applicationData[key] === undefined || applicationData[key] === null) {
+            delete applicationData[key];
+        }
+    });
+    return applicationData;
+}
+
+/**
+ * Creates a bidirectional link between member and application records.
+ * * @param {string} memberId - Member record to update
+ * @param {object} memberData - Current member data with existing applications
+ * @param {string} applicationId - New application to link
+ */
+export async function updateMemberWithApplication(memberId, memberData, applicationId) {
+    if (!memberId || !applicationId) {
+        throw new Error('Both memberId and applicationId are required');
+    }
+    
+    if (!memberData) {
+        // Fetch the member data if not provided
+        const memberItem = await elevate(wixData.get)(MEMBERS_COLLECTION_ID, memberId);
+        if (!memberItem) {
+            throw new Error(`Member not found: ${memberId}`);
+        }
+        memberData = memberItem;
+    }
+    
+    try {
+        const existingApplications = memberData.studioApplications || [];
+        
+        // Prevent duplicate application references
+        if (existingApplications.includes(applicationId)) {
+            console.log('Application already linked to member');
+            return;
+        }
+        
+        const memberUpdateData = {
+            _id: memberId,
+            studioApplications: [...existingApplications, applicationId],
+            lastApplicationDate: new Date()
+        };
+        
+        await elevate(wixData.update)(MEMBERS_COLLECTION_ID, memberUpdateData);
+        console.log(`Updated member ${memberId} with application ${applicationId}`);
+    } catch (error) {
+        console.error('Failed to update member with application:', error);
+        throw new Error(`Failed to link application to member: ${error.message}`);
+    }
+}
