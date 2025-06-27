@@ -1,8 +1,8 @@
 // src/backend/webhook-logic.jsw
-// Null-safe version with proper error handling
+// BACK TO BASICS - Simple working version
 
 import { contacts } from 'wix-crm-backend';
-import { register, sendSetPasswordEmail, queryMembers } from 'wix-members-backend';
+import { register, sendSetPasswordEmail } from 'wix-members-backend';
 import { elevate } from 'wix-auth';
 import wixData from 'wix-data';
 
@@ -14,11 +14,29 @@ const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
  * Finds or creates a CRM contact record.
  */
 export async function findOrCreateContact(payload) {
+    console.log('Creating contact with payload:', JSON.stringify({
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        email: payload.email,
+        phone: payload.phone
+    }));
+    
     const contactInfo = {
-        name: { first: payload.firstName || "", last: payload.lastName || "" },
-        emails: [{ tag: 'MAIN', email: payload.email }],
-        phones: payload.phone ? [{ tag: 'MOBILE', phone: payload.phone }] : [],
+        name: {
+            first: payload.firstName,
+            last: payload.lastName
+        },
+        emails: [{
+            email: payload.email,
+            tag: 'MAIN'
+        }],
+        phones: payload.phone ? [{
+            phone: payload.phone,
+            tag: 'MAIN'
+        }] : []
     };
+    
+    console.log('Contact info to send:', JSON.stringify(contactInfo));
     
     const result = await elevate(contacts.appendOrCreateContact)(contactInfo);
     console.log(`Processed contact with ID: ${result.contactId}`);
@@ -29,81 +47,50 @@ export async function findOrCreateContact(payload) {
  * Finds existing site member or creates a new one with a welcome email.
  */
 export async function findOrCreateMember(contactId, email) {
-    // First check if member exists by email
-    try {
-        const emailQuery = await elevate(queryMembers)({ loginEmail: email })
-            .limit(1)
-            .find();
-            
-        if (emailQuery && emailQuery.items && emailQuery.items.length > 0) {
-            const authMember = emailQuery.items[0];
-            console.log(`Found existing auth member with ID: ${authMember._id}`);
-            
-            // Get or create the member profile record
-            let memberData;
-            try {
-                memberData = await elevate(wixData.get)(MEMBERS_COLLECTION_ID, authMember._id);
-            } catch (e) {
-                // Profile doesn't exist, create it
-                memberData = {
-                    _id: authMember._id,
-                    loginEmail: email,
-                    contactId: contactId
-                };
-                memberData = await elevate(wixData.insert)(MEMBERS_COLLECTION_ID, memberData);
-                console.log('Created missing member profile');
-            }
-            
-            return { memberId: authMember._id, memberData: memberData };
-        }
-    } catch (queryError) {
-        console.log('Query members failed, will try to register new member');
-    }
-    
-    // Also check the member collection by contactId
+    // Check if member exists by contactId
     const memberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
         .eq("contactId", contactId)
         .find)();
 
-    if (memberQuery && memberQuery.items && memberQuery.items.length > 0) {
+    if (memberQuery.items.length > 0) {
         const member = memberQuery.items[0];
         console.log(`Found existing Member ID: ${member._id}`);
         return { memberId: member._id, memberData: member };
-    }
-    
-    // No existing member, create new one
-    try {
-        const tempPassword = generateTempPassword();
-        const registerMemberResult = await elevate(register)(email, tempPassword, {
-            contactInfo: {
-                contactId: contactId
+    } else {
+        try {
+            // Register new member
+            const tempPassword = generateTempPassword();
+            const registerMemberResult = await elevate(register)(email, tempPassword, {
+                contactInfo: {
+                    contactId: contactId
+                }
+            });
+            const member = registerMemberResult.member;
+            console.log(`Created new member with ID: ${member._id}`);
+            
+            // Send password setup email
+            await elevate(sendSetPasswordEmail)(email);
+            console.log(`Password setup email sent to ${email}`);
+            
+            return { memberId: member._id, memberData: member };
+        } catch (error) {
+            console.error(`Error creating member for contact ${contactId}:`, error);
+            
+            // Handle case where email already exists
+            if (error && error.message && error.message.includes('MEMBER_EMAIL_EXISTS')) {
+                // Try to find existing member by email
+                const existingMemberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
+                    .eq("loginEmail", email)
+                    .find)();
+                    
+                if(existingMemberQuery.items.length > 0){
+                    const existingMember = existingMemberQuery.items[0];
+                    console.log(`Member with email ${email} already exists. Returning existing member ID: ${existingMember._id}.`);
+                    return { memberId: existingMember._id, memberData: existingMember };
+                }
             }
-        });
-        const member = registerMemberResult.member;
-        console.log(`Created new member with ID: ${member._id}`);
-        
-        // Send password setup email
-        await elevate(sendSetPasswordEmail)(email);
-        console.log(`Password setup email sent to ${email}`);
-        
-        return { memberId: member._id, memberData: member };
-    } catch (error) {
-        console.error(`Error creating member:`, error);
-        
-        // If registration failed due to existing email, try to find by email in collection
-        if (error && error.message && error.message.includes('EMAIL')) {
-            const existingMemberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
-                .eq("loginEmail", email)
-                .find)();
-                
-            if (existingMemberQuery && existingMemberQuery.items && existingMemberQuery.items.length > 0) {
-                const existingMember = existingMemberQuery.items[0];
-                console.log(`Member with email ${email} already exists. Returning existing member ID: ${existingMember._id}.`);
-                return { memberId: existingMember._id, memberData: existingMember };
-            }
+            throw new Error(`Failed to create member account: ${error?.message || 'Unknown error'}`);
         }
-        
-        throw new Error(`Failed to create member account`);
     }
 }
 
@@ -154,17 +141,17 @@ export function buildApplicationData(payload, memberId) {
  * Creates a bidirectional link between member and application records.
  */
 export async function updateMemberWithApplication(memberId, memberData, applicationId) {
-    if (!memberId || !applicationId) {
-        console.log('Skipping member update: missing memberId or applicationId');
+    if (!memberId || !applicationId || memberId.startsWith('temp_')) {
+        console.log('Skipping member update: missing or temporary memberId');
         return;
     }
     
     try {
-        // Get the full member record if not provided
         let fullMemberData = memberData;
         if (!fullMemberData) {
-            fullMemberData = await elevate(wixData.get)(MEMBERS_COLLECTION_ID, memberId);
-            if (!fullMemberData) {
+            try {
+                fullMemberData = await elevate(wixData.get)(MEMBERS_COLLECTION_ID, memberId);
+            } catch (e) {
                 console.log(`Member ${memberId} not found in collection`);
                 return;
             }
@@ -172,22 +159,15 @@ export async function updateMemberWithApplication(memberId, memberData, applicat
         
         const existingApplications = fullMemberData.studioApplications || [];
         
-        // Prevent duplicate application references
-        if (existingApplications.includes(applicationId)) {
-            console.log('Application already linked to member');
-            return;
+        if (!existingApplications.includes(applicationId)) {
+            fullMemberData.studioApplications = [...existingApplications, applicationId];
+            fullMemberData.lastApplicationDate = new Date();
+            await elevate(wixData.update)(MEMBERS_COLLECTION_ID, fullMemberData);
+            console.log(`Updated member ${memberId} with application ${applicationId}`);
         }
-        
-        // Update the full member object
-        fullMemberData.studioApplications = [...existingApplications, applicationId];
-        fullMemberData.lastApplicationDate = new Date();
-        
-        await elevate(wixData.update)(MEMBERS_COLLECTION_ID, fullMemberData);
-        console.log(`Updated member ${memberId} with application ${applicationId}`);
         
     } catch (error) {
         console.error('Failed to update member with application:', error);
-        // Don't throw - we don't want to fail the entire webhook
     }
 }
 
