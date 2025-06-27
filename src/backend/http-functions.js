@@ -4,21 +4,15 @@ import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
 import { elevate } from 'wix-auth';
 import { getSecret } from 'wix-secrets-backend';
 import wixData from 'wix-data';
-import { fetch } from 'wix-fetch';
 
 // Secret keys stored in Wix Secrets Manager - these should never be hardcoded
 // FILLOUT_API_KEY validates incoming webhook requests from Fillout form service
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
-const REST_API_KEY_NAME = "MEMBER_MANAGEMENT_API_KEY";
-const ACCOUNT_HEADER_NAME = "ACCOUNT_API_HEADER";
-
 // Collection IDs - consider moving to a configuration object
 // Members collection is Wix's built-in private member data store
 const MEMBERS_COLLECTION_ID = "Members/PrivateMembersData";
 // TODO: Rename "Import1" to something meaningful like "StudioApplications"
 const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
-
-const WIX_CREATE_MEMBER_API_URL = "https://www.wixapis.com/members/v1/members";
 
 /**
  * Main webhook handler for Fillout form submissions.
@@ -152,13 +146,8 @@ async function findOrCreateMember(contactId, email) {
             console.log(`Password setup email sent to ${email}`);
             return { memberId: member._id, memberData: member };
         } catch (error) {
-            // Registration can fail if email is already registered
-            // This shouldn't happen due to our contact check, but handles edge cases
-            console.warn(`Error creating member ${contactId}:`, error.message);
-            
-            // BUG: This return is unreachable - member is undefined in catch block
-            // Should either throw the error or handle the failure case properly
-            if(member) return { memberId: member._id, memberData: member };
+            console.error(`Error creating member for contact ${contactId}:`, error.message);
+            throw new Error(`Failed to create member account: ${error.message}`);
         }
     }
 }
@@ -279,83 +268,5 @@ async function updateMemberWithApplication(memberId, memberData, applicationId) 
         // Non-fatal error - application is saved even if member update fails
         // This ensures we don't lose applications due to member record issues
         console.warn("Could not update member record:", memberUpdateError.message);
-    }
-}
-
-/**
- * Test endpoint for debugging Wix Members API integration.
- * 
- * Isolated test to verify:
- * - API credentials are correctly configured
- * - Network connectivity to Wix APIs
- * - Member creation from contact ID works
- * 
- * Access via: GET /_functions/testMemberCreation
- * 
- * @param {Request} request - HTTP request (unused)
- * @returns {Response} Detailed success/failure information
- */
-export async function get_testMemberCreation(request) {
-    console.log("Running minimal test case for Create Member API...");
-
-    // WARNING: This contact must exist but NOT have a member account
-    // Creating a member for an already-registered contact will fail
-    const testContactId = "861a9d91-4875-442a-a23c-7413affaac86";
-
-    try {
-        // These secrets are required for REST API authentication
-        // Different from the internal SDK authentication used elsewhere
-        const wixApiKey = await getSecret(REST_API_KEY_NAME);
-        const wixAccountHeader = await getSecret(ACCOUNT_HEADER_NAME);
-
-        if (!wixApiKey || !wixAccountHeader) {
-            const secretErrorMsg = `TEST FAILED: One or more required secrets were not found.`;
-            console.error(secretErrorMsg);
-            return serverError({ body: secretErrorMsg });
-        }
-
-        const createMemberBody = {
-            member: { contactId: testContactId }
-        };
-
-        const fetchOptions = {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${wixApiKey}`,
-                'wix-account-id': wixAccountHeader  // Identifies which Wix site to use
-            },
-            body: JSON.stringify(createMemberBody)
-        };
-
-        console.log("Making fetch call to:", WIX_CREATE_MEMBER_API_URL);
-        const response = await fetch(WIX_CREATE_MEMBER_API_URL, fetchOptions);
-        const responseText = await response.text();
-
-        console.log(`API response status: ${response.status}`);
-        console.log("API response body:", responseText);
-
-        // Wix API returns 200 for success, various 4xx/5xx for failures
-        if (response.ok) {
-            return ok({ body: `SUCCESS: ${responseText}` });
-        } else {
-            return serverError({ body: `FAILURE: Status ${response.status}, Body: ${responseText}` });
-        }
-
-    } catch (error) {
-        console.error("TEST FAILED with error:", error.message);
-        return serverError({ body: `TEST FAILED: ${error.message}` });
-    }
-}
-
-/**
- * Incomplete function stub - appears to be an alternate handler.
- * TODO: Remove if unused or complete implementation
- */
-export async function handleApplication(payload) {
-    console.log("Handling application with payload:", payload);
-    const { email } = payload;
-    if (!email) {
-        throw new Error("Email is required in the payload");
     }
 }
