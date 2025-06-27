@@ -7,6 +7,16 @@ import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
 import { elevate } from 'wix-auth';
 import { getSecret } from 'wix-secrets-backend';
 import wixData from 'wix-data';
+import { 
+    runAllTests,
+    testContactCreation,
+    testMemberCreation,
+    testApplicationDataBuilding,
+    testFullWebhookFlow,
+    testInvalidApiKey,
+    testMissingEmail
+} from 'backend/testing.jsw';
+
 
 // Secret keys stored in Wix Secrets Manager
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
@@ -262,21 +272,6 @@ export function post_hello(request) {
             });
         });
 }
-
-// Add these functions to your existing src/backend/http-functions.js file
-// These provide HTTP endpoints to trigger your tests
-
-import { 
-    runAllTests,
-    testContactCreation,
-    testMemberCreation,
-    testApplicationDataBuilding,
-    testFullWebhookFlow,
-    testInvalidApiKey,
-    testMissingEmail
-} from 'backend/testing.jsw';
-import { ok, serverError, forbidden } from 'wix-http-functions';
-import { authentication } from 'wix-members-backend';
 
 /**
  * Main test runner endpoint
