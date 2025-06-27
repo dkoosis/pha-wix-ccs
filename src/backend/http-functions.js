@@ -28,6 +28,8 @@ import {
     testMissingEmail
 } from 'backend/testing.jsw';
 
+// ... imports
+const CODE_VERSION = "to_be_replaced"; // The script will replace this line
 // Secret keys stored in Wix Secrets Manager
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
 const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
@@ -36,6 +38,7 @@ const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
  * Main webhook handler for Fillout form submissions.
  */
 export async function post_helloWebhook(request) {
+   console.log(`Executing Webhook - Code Version: ${CODE_VERSION}`);
     try {
         // Verify API key
         const receivedApiKey = request.headers['x-api-key'];

@@ -3,4 +3,6 @@ node_modules/
 .vscode/
 .idea/
 .wix/
+.husky/
 jsconfig.json
+sctipts/
