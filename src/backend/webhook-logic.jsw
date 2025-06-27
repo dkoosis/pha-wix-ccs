@@ -1,5 +1,5 @@
 // src/backend/webhook-logic.jsw
-// BACK TO BASICS - Simple working version
+// Consolidated and corrected version
 
 import { contacts } from 'wix-crm-backend';
 import { register, sendSetPasswordEmail } from 'wix-members-backend';
@@ -8,127 +8,88 @@ import wixData from 'wix-data';
 
 // Collection IDs
 const MEMBERS_COLLECTION_ID = "Members/PrivateMembersData";
-const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
+const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1"; // Please verify this is your applications collection
 
 /**
- * Finds or creates a CRM contact record.
- */
-/**
- * Finds a member by contact ID, or creates one if not found.
- * This function now correctly elevates the entire query operation.
- * @param {string} contactId - The ID of the contact to find or create a member for.
- * @param {object} memberData - The data for the new member if one needs to be created.
- * @returns {Promise<string>} The ID of the found or newly created member.
- */
-export async function findOrCreateMember(contactId, memberData) {
-    if (!contactId) {
-        throw new Error("contactId is required to find or create a member.");
-    }
-
-    // We define an async function that contains the database query
-    // and pass that entire function to elevate().
-    const findMemberByContactId = elevate(async (id) => {
-        const queryResult = await wixData.query("Members/PrivateMembersData") // Using the standard PrivateMembersData collection
-            .eq("contactId", id)
-            .limit(1)
-            .find();
-        return queryResult.items[0];
-    });
-
-    try {
-        // Execute the elevated query
-        const existingMember = await findMemberByContactId(contactId);
-
-        if (existingMember) {
-            console.log(`Found existing member: ${existingMember._id}`);
-            return existingMember._id; // Member already exists
-        } else {
-            console.log("Member not found, creating a new one.");
-
-            // Since the member doesn't exist, create it.
-            // This operation should also be elevated if the collection requires it.
-            const createMember = elevate(async (data) => {
-                // Ensure the data being inserted includes the all-important contactId
-                const dataToInsert = {
-                    ...data,
-                    contactId: contactId
-                };
-                const newMember = await wixData.insert("Members/PrivateMembersData", dataToInsert);
-                return newMember._id;
-            });
-
-            const newMemberId = await createMember(memberData);
-            console.log(`Created new member with ID: ${newMemberId}`);
-            return newMemberId;
-        }
-    } catch (error) {
-        console.error("Error in findOrCreateMember:", error);
-        // It's crucial to check for specific error types, as recommended by best practices [cite: 27]
-        if (error.code === "WD_COLLECTION_NOT_FOUND") {
-            // Handle case where collection doesn't exist
-        }
-        throw new Error(`Failed during member find/create process: ${error.message}`);
-    }
-}
-/**
- * Finds existing site member or creates a new one with a welcome email.
+ * Finds an existing site member by email or contact ID, or creates a new one.
+ * It prioritizes finding by email to prevent duplicate member accounts.
+ * @param {string} contactId - The ID of the CRM contact.
+ * @param {string} email - The email address of the member.
+ * @returns {Promise<{memberId: string, memberData: object}>} An object containing the member's ID and data.
  */
 export async function findOrCreateMember(contactId, email) {
-    // First check if member exists by email (to avoid registration errors)
-    const emailQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
-        .eq("loginEmail", email)
-        .find)();
-        
-    if (emailQuery.items.length > 0) {
-        const member = emailQuery.items[0];
-        console.log(`Found existing member by email: ${member._id}`);
-        // Update contactId if missing
-        if (!member.contactId) {
-            member.contactId = contactId;
-            await elevate(wixData.update)(MEMBERS_COLLECTION_ID, member);
-        }
-        return { memberId: member._id, memberData: member };
+    if (!contactId || !email) {
+        throw new Error("Both contactId and email are required.");
     }
-    
-    // Check if member exists by contactId
-    const memberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
-        .eq("contactId", contactId)
-        .find)();
 
-    if (memberQuery.items.length > 0) {
-        const member = memberQuery.items[0];
-        console.log(`Found existing Member ID: ${member._id}`);
-        return { memberId: member._id, memberData: member };
-    }
-    
-    // No existing member found, create new one
     try {
-        console.log(`Creating new member for email: ${email}`);
-        const tempPassword = generateTempPassword();
-        const registerMemberResult = await elevate(register)(email, tempPassword, {
-            contactInfo: {
-                contactId: contactId
+        // Define elevated functions for database operations using the correct pattern.
+        const findMember = elevate(async (queryOptions) => {
+            let query = wixData.query(MEMBERS_COLLECTION_ID);
+            if (queryOptions.email) {
+                query = query.eq("loginEmail", queryOptions.email);
+            } else if (queryOptions.contactId) {
+                query = query.eq("contactId", queryOptions.contactId);
             }
+            const results = await query.limit(1).find();
+            return results.items[0];
         });
-        const member = registerMemberResult.member;
-        console.log(`Created new member with ID: ${member._id}`);
-        
-        // Send password setup email (don't fail if this fails)
-        try {
-            await elevate(sendSetPasswordEmail)(email);
-            console.log(`Password setup email sent to ${email}`);
-        } catch (emailError) {
-            console.log(`Failed to send password email, continuing anyway`);
+
+        const updateMemberContact = elevate(async (memberId, newContactId) => {
+            const toUpdate = {
+                _id: memberId,
+                contactId: newContactId
+            };
+            return wixData.update(MEMBERS_COLLECTION_ID, toUpdate);
+        });
+
+        // 1. First, try to find an existing member by email. This is the most reliable unique identifier for a member account.
+        let member = await findMember({ email });
+        if (member) {
+            console.log(`Found existing member by email: ${member._id}`);
+            // If the member was found by email but is missing the contactId, update it.
+            if (!member.contactId) {
+                await updateMemberContact(member._id, contactId);
+                member.contactId = contactId; // Update in-memory object as well
+                console.log(`Updated member ${member._id} with contactId ${contactId}`);
+            }
+            return { memberId: member._id, memberData: member };
         }
-        
-        return { memberId: member._id, memberData: member };
-    } catch (registerError) {
-        console.error(`Registration failed, generating temporary ID`);
-        // Create a temporary member ID so we don't lose the application
+
+        // 2. If not found by email, try to find by contactId.
+        member = await findMember({ contactId });
+        if (member) {
+            console.log(`Found existing member by contactId: ${member._id}`);
+            return { memberId: member._id, memberData: member };
+        }
+
+        // 3. If no member is found, register a new one.
+        console.log(`No existing member found. Creating new member for email: ${email}`);
+        const registrationResult = await register(email, generateTempPassword(), {
+            contactInfo: { contactId: contactId }
+        });
+
+        const newMember = registrationResult.member;
+        console.log(`Created new member with ID: ${newMember._id}`);
+
+        // Send password setup email but don't let it block the main flow.
+        sendSetPasswordEmail(email).catch(emailError => {
+            console.error(`Non-critical error: Failed to send password setup email to ${email}.`, emailError);
+        });
+
+        return { memberId: newMember._id, memberData: newMember };
+
+    } catch (error) {
+        console.error("Error in findOrCreateMember:", error);
+        // Create a temporary ID if registration fails so the application data isn't lost.
+        if (error.message.includes("is already a site member")) {
+             console.error(`Registration failed because a member with email ${email} likely already exists but could not be found initially. Review data consistency.`);
+        }
         const tempMemberId = `pending_${Date.now()}`;
         return { memberId: tempMemberId, memberData: null };
     }
 }
+
 
 /**
  * Transforms raw form data into a structured application record.
@@ -176,34 +137,34 @@ export function buildApplicationData(payload, memberId) {
 /**
  * Creates a bidirectional link between member and application records.
  */
-export async function updateMemberWithApplication(memberId, memberData, applicationId) {
+export async function updateMemberWithApplication(memberId, applicationId) {
     if (!memberId || !applicationId || memberId.startsWith('pending_')) {
-        console.log('Skipping member update: missing or pending memberId');
+        console.log('Skipping member update: memberId is missing or temporary.');
         return;
     }
     
+    const elevatedGet = elevate(wixData.get);
+    const elevatedUpdate = elevate(wixData.update);
+
     try {
-        let fullMemberData = memberData;
-        if (!fullMemberData) {
-            try {
-                fullMemberData = await elevate(wixData.get)(MEMBERS_COLLECTION_ID, memberId);
-            } catch (e) {
-                console.log(`Member ${memberId} not found in collection`);
-                return;
-            }
-        }
+        const fullMemberData = await elevatedGet(MEMBERS_COLLECTION_ID, memberId);
         
         const existingApplications = fullMemberData.studioApplications || [];
         
         if (!existingApplications.includes(applicationId)) {
-            fullMemberData.studioApplications = [...existingApplications, applicationId];
-            fullMemberData.lastApplicationDate = new Date();
-            await elevate(wixData.update)(MEMBERS_COLLECTION_ID, fullMemberData);
+            const updatedData = {
+                ...fullMemberData,
+                studioApplications: [...existingApplications, applicationId],
+                lastApplicationDate: new Date()
+            };
+            await elevatedUpdate(MEMBERS_COLLECTION_ID, updatedData);
             console.log(`Updated member ${memberId} with application ${applicationId}`);
+        } else {
+            console.log(`Member ${memberId} already linked to application ${applicationId}.`);
         }
         
     } catch (error) {
-        console.error('Failed to update member with application:', error);
+        console.error(`Failed to update member ${memberId} with application:`, error);
     }
 }
 
@@ -216,7 +177,8 @@ export async function createApplicationRecord(applicationData) {
     }
     console.log("Inserting application record into database...");
     
-    const newApplication = await wixData.insert(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData);
+    // This operation likely needs to be elevated as well.
+    const newApplication = await elevate(wixData.insert)(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData);
     
     console.log("New Studio Application record created with ID:", newApplication._id);
     return newApplication;
@@ -226,10 +188,8 @@ export async function createApplicationRecord(applicationData) {
  * Helper function to generate a secure temporary password.
  */
 function generateTempPassword() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-    let password = '';
-    for (let i = 0; i < 12; i++) {
-        password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
+    // Generates a more secure random password
+    const buffer = new Uint8Array(12);
+    crypto.getRandomValues(buffer);
+    return btoa(String.fromCharCode.apply(null, buffer)).substring(0, 16);
 }
