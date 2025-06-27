@@ -41,8 +41,7 @@ export async function post_helloWebhook(request) {
         // Email is the primary identifier for deduplication
         // Without it, we can't check for existing contacts/members
         if (!payload.email) {
-            // TODO: This should return badRequest(400) not serverError(500)
-            return serverError({ body: "Email is required in the payload" });
+            return badRequest({ body: "Email is required in the payload" });
         }
         console.log("Processing studio application for email:", payload.email);
 
