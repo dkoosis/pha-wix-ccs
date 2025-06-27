@@ -13,51 +13,63 @@ const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
 /**
  * Finds or creates a CRM contact record.
  */
-export async function findOrCreateContact(payload) {
-    console.log('Creating contact with payload:', JSON.stringify({
-        firstName: payload.firstName,
-        lastName: payload.lastName,
-        email: payload.email,
-        phone: payload.phone
-    }));
-    
-    // Validate required fields
-    if (!payload.email) {
-        throw new Error('Email is required for contact creation');
+/**
+ * Finds a member by contact ID, or creates one if not found.
+ * This function now correctly elevates the entire query operation.
+ * @param {string} contactId - The ID of the contact to find or create a member for.
+ * @param {object} memberData - The data for the new member if one needs to be created.
+ * @returns {Promise<string>} The ID of the found or newly created member.
+ */
+export async function findOrCreateMember(contactId, memberData) {
+    if (!contactId) {
+        throw new Error("contactId is required to find or create a member.");
     }
-    
-    const contactInfo = {
-        name: {
-            first: payload.firstName || '',
-            last: payload.lastName || ''
-        },
-        emails: [{
-            email: payload.email,
-            tag: 'MAIN'
-        }]
-    };
-    
-    // Only add phone if it exists
-    if (payload.phone) {
-        contactInfo.phones = [{
-            phone: payload.phone,
-            tag: 'MOBILE'
-        }];
-    }
-    
-    console.log('Contact info to send:', JSON.stringify(contactInfo));
-    
+
+    // We define an async function that contains the database query
+    // and pass that entire function to elevate().
+    const findMemberByContactId = elevate(async (id) => {
+        const queryResult = await wixData.query("Members/PrivateMembersData") // Using the standard PrivateMembersData collection
+            .eq("contactId", id)
+            .limit(1)
+            .find();
+        return queryResult.items[0];
+    });
+
     try {
-        const result = await elevate(contacts.appendOrCreateContact)(contactInfo);
-        console.log(`Processed contact with ID: ${result.contactId}`);
-        return result.contactId;
-    } catch (crmError) {
-        console.error('CRM API Error:', crmError);
-        console.error('CRM Error details:', JSON.stringify(crmError));
-        throw new Error(`Contact creation failed: ${crmError?.message || 'CRM API error'}`);
+        // Execute the elevated query
+        const existingMember = await findMemberByContactId(contactId);
+
+        if (existingMember) {
+            console.log(`Found existing member: ${existingMember._id}`);
+            return existingMember._id; // Member already exists
+        } else {
+            console.log("Member not found, creating a new one.");
+
+            // Since the member doesn't exist, create it.
+            // This operation should also be elevated if the collection requires it.
+            const createMember = elevate(async (data) => {
+                // Ensure the data being inserted includes the all-important contactId
+                const dataToInsert = {
+                    ...data,
+                    contactId: contactId
+                };
+                const newMember = await wixData.insert("Members/PrivateMembersData", dataToInsert);
+                return newMember._id;
+            });
+
+            const newMemberId = await createMember(memberData);
+            console.log(`Created new member with ID: ${newMemberId}`);
+            return newMemberId;
+        }
+    } catch (error) {
+        console.error("Error in findOrCreateMember:", error);
+        // It's crucial to check for specific error types, as recommended by best practices [cite: 27]
+        if (error.code === "WD_COLLECTION_NOT_FOUND") {
+            // Handle case where collection doesn't exist
+        }
+        throw new Error(`Failed during member find/create process: ${error.message}`);
     }
 }
-
 /**
  * Finds existing site member or creates a new one with a welcome email.
  */
