@@ -1,5 +1,5 @@
 // src/backend/webhook-logic.jsw
-// Simplified version with only essential fixes
+// MINIMAL FIX - Just fixing the actual bug
 
 import { contacts } from 'wix-crm-backend';
 import { register, sendSetPasswordEmail, queryMembers } from 'wix-members-backend';
@@ -29,10 +29,10 @@ export async function findOrCreateContact(payload) {
  * Finds existing site member or creates a new one with a welcome email.
  */
 export async function findOrCreateMember(contactId, email) {
-    // Check for existing member by contactId
-    const memberQuery = await elevate(wixData.query)(MEMBERS_COLLECTION_ID)
+    // FIX: Changed elevation pattern from elevate(query)() to elevate(query.find)()
+    const memberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
         .eq("contactId", contactId)
-        .find();
+        .find)();
 
     if (memberQuery.items.length > 0) {
         const member = memberQuery.items[0];
@@ -60,9 +60,10 @@ export async function findOrCreateMember(contactId, email) {
             
             // Handle case where email already exists
             if (error.message && error.message.includes('MEMBER_EMAIL_EXISTS')) {
-                const existingMemberQuery = await elevate(wixData.query)("Members/PrivateMembersData")
+                // FIX: Same elevation pattern fix here
+                const existingMemberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
                     .eq("loginEmail", email)
-                    .find();
+                    .find)();
                     
                 if(existingMemberQuery.items.length > 0){
                     const existingMember = existingMemberQuery.items[0];
@@ -120,7 +121,6 @@ export function buildApplicationData(payload, memberId) {
 
 /**
  * Creates a bidirectional link between member and application records.
- * FIXED: Uses get-modify-update pattern to prevent field deletion
  */
 export async function updateMemberWithApplication(memberId, memberData, applicationId) {
     if (!memberId || !applicationId) {
@@ -162,7 +162,6 @@ export async function updateMemberWithApplication(memberId, memberData, applicat
 
 /**
  * Inserts the finalized application record into the database.
- * Collection is public-writable, so no special permissions needed.
  */
 export async function createApplicationRecord(applicationData) {
     if (!applicationData) {
@@ -178,7 +177,6 @@ export async function createApplicationRecord(applicationData) {
 
 /**
  * Helper function to generate a secure temporary password.
- * NOTE: Uses Math.random() due to Velo limitations
  */
 function generateTempPassword() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
