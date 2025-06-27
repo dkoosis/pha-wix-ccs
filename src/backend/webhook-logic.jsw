@@ -1,5 +1,5 @@
 // src/backend/webhook-logic.jsw
-// Minimal fix - just make error handling safer
+// Check for existing member BEFORE trying to register
 
 import { contacts } from 'wix-crm-backend';
 import { register, sendSetPasswordEmail, queryMembers } from 'wix-members-backend';
@@ -29,59 +29,52 @@ export async function findOrCreateContact(payload) {
  * Finds existing site member or creates a new one with a welcome email.
  */
 export async function findOrCreateMember(contactId, email) {
-    // Check if member exists by contactId
-    const memberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
-        .eq("contactId", contactId)
-        .find)();
-
-    if (memberQuery.items.length > 0) {
-        const member = memberQuery.items[0];
-        console.log(`Found existing Member ID: ${member._id}`);
-        return { memberId: member._id, memberData: member };
-    } else {
+    // First check if member exists by email (to avoid registration errors)
+    const emailQuery = await elevate(queryMembers)({ loginEmail: email })
+        .limit(1)
+        .find();
+        
+    if (emailQuery.items.length > 0) {
+        const authMember = emailQuery.items[0];
+        console.log(`Found existing auth member with ID: ${authMember._id}`);
+        
+        // Get or create the member profile record
+        let memberData;
         try {
-            // Register new member
-            const tempPassword = generateTempPassword();
-            const registerMemberResult = await elevate(register)(email, tempPassword, {
-                contactInfo: {
-                    contactId: contactId
-                }
-            });
-            const member = registerMemberResult.member;
-            console.log(`Created new member with ID: ${member._id}`);
-            
-            // Send password setup email
-            await elevate(sendSetPasswordEmail)(email);
-            console.log(`Password setup email sent to ${email}`);
-            
-            return { memberId: member._id, memberData: member };
-        } catch (error) {
-            console.error(`Error creating member for contact ${contactId}:`, error);
-            
-            // MINIMAL FIX: Safely check for MEMBER_EMAIL_EXISTS in any form
-            let errorString = '';
-            try {
-                errorString = JSON.stringify(error);
-            } catch (e) {
-                errorString = String(error);
-            }
-            
-            if (errorString.includes('MEMBER_EMAIL_EXISTS')) {
-                // Try to find existing member by email
-                const existingMemberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
-                    .eq("loginEmail", email)
-                    .find)();
-                    
-                if(existingMemberQuery.items.length > 0){
-                    const existingMember = existingMemberQuery.items[0];
-                    console.log(`Member with email ${email} already exists. Returning existing member ID: ${existingMember._id}.`);
-                    return { memberId: existingMember._id, memberData: existingMember };
-                }
-            }
-            
-            // Re-throw with safe error message
-            throw new Error(`Failed to create member account`);
+            memberData = await elevate(wixData.get)(MEMBERS_COLLECTION_ID, authMember._id);
+        } catch (e) {
+            // Profile doesn't exist, create it
+            memberData = {
+                _id: authMember._id,
+                loginEmail: email,
+                contactId: contactId
+            };
+            memberData = await elevate(wixData.insert)(MEMBERS_COLLECTION_ID, memberData);
+            console.log('Created missing member profile');
         }
+        
+        return { memberId: authMember._id, memberData: memberData };
+    }
+    
+    // No existing member, create new one
+    try {
+        const tempPassword = generateTempPassword();
+        const registerMemberResult = await elevate(register)(email, tempPassword, {
+            contactInfo: {
+                contactId: contactId
+            }
+        });
+        const member = registerMemberResult.member;
+        console.log(`Created new member with ID: ${member._id}`);
+        
+        // Send password setup email
+        await elevate(sendSetPasswordEmail)(email);
+        console.log(`Password setup email sent to ${email}`);
+        
+        return { memberId: member._id, memberData: member };
+    } catch (error) {
+        console.error(`Error creating member:`, error);
+        throw new Error(`Failed to create member account`);
     }
 }
 
