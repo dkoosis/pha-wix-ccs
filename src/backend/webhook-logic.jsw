@@ -1,5 +1,5 @@
 // src/backend/webhook-logic.jsw
-// MINIMAL FIX - Just fixing the actual bug
+// 1211p
 
 import { contacts } from 'wix-crm-backend';
 import { register, sendSetPasswordEmail, queryMembers } from 'wix-members-backend';
