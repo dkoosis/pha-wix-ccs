@@ -57,7 +57,7 @@ export async function post_helloWebhook(request) {
 
         const contactId = await findOrCreateContact(payload);
         const { memberId, memberData } = await findOrCreateMember(contactId, payload.email);
-        const applicationData = buildApplicationData(payload, memberId);
+        const applicationData = await buildApplicationData(payload, memberId);
 
         const newApplication = await elevate(wixData.insert)(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData);
         console.log("New Studio Application record created with ID:", newApplication._id);
