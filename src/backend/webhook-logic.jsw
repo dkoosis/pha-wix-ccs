@@ -66,8 +66,10 @@ export async function findOrCreateMember(contactId, email) {
             console.error(`Error creating member for contact ${contactId}:`, error);
             // Handle race condition where email exists but wasn't found by contactId
             if (error.message && error.message.includes('MEMBER_EMAIL_EXISTS')) {
-                 const existingMemberQuery = await elevate(wixData.query)("Members/PrivateMembersData").eq("loginEmail", email).find();
-                 if(existingMemberQuery.items.length > 0){
+                const existingMemberQuery = await elevate(wixData.query("Members/PrivateMembersData")
+                    .eq("loginEmail", email)
+                    .find)();                 
+                if(existingMemberQuery.items.length > 0){
                     const existingMember = existingMemberQuery.items[0];
                     console.log(`Member with email ${email} already exists. Returning existing member ID: ${existingMember._id}.`);
                     return { memberId: existingMember._id, memberData: existingMember };
