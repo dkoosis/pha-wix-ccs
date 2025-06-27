@@ -1,3 +1,6 @@
+// src/backend/http-functions.js
+// Updated version with exportable functions for testing
+
 import { contacts } from 'wix-crm-backend';
 import { authentication } from 'wix-members-backend';
 import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
@@ -5,13 +8,10 @@ import { elevate } from 'wix-auth';
 import { getSecret } from 'wix-secrets-backend';
 import wixData from 'wix-data';
 
-// Secret keys stored in Wix Secrets Manager - these should never be hardcoded
-// FILLOUT_API_KEY validates incoming webhook requests from Fillout form service
+// Secret keys stored in Wix Secrets Manager
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
-// Collection IDs - consider moving to a configuration object
-// Members collection is Wix's built-in private member data store
+// Collection IDs
 const MEMBERS_COLLECTION_ID = "Members/PrivateMembersData";
-// TODO: Rename "Import1" to something meaningful like "StudioApplications"
 const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
 
 /**
@@ -28,8 +28,7 @@ const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
  */
 export async function post_helloWebhook(request) {
     try {
-        // API key validation prevents unauthorized webhook calls
-        // This is critical since this endpoint creates user accounts
+        // API key validation
         const receivedApiKey = request.headers['x-api-key'];
         const storedApiKey = await getSecret(FILLOUT_API_KEY_NAME);
         if (receivedApiKey !== storedApiKey) {
@@ -38,25 +37,22 @@ export async function post_helloWebhook(request) {
 
         const payload = await request.body.json();
         
-        // Email is the primary identifier for deduplication
-        // Without it, we can't check for existing contacts/members
+        // Email validation
         if (!payload.email) {
             return badRequest({ body: "Email is required in the payload" });
         }
         console.log("Processing studio application for email:", payload.email);
 
-        // Sequential operations ensure data consistency
-        // Contact must exist before member, member must exist before application
+        // Sequential operations
         const contactId = await findOrCreateContact(payload);
         const { memberId, memberData } = await findOrCreateMember(contactId, payload.email);
         const applicationData = buildApplicationData(payload, memberId);
 
-        // suppressAuth bypasses permission checks - necessary since webhook runs without user context
+        // Create application record
         const newApplication = await wixData.insert(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData, {suppressAuth: true});
         console.log("New Studio Application record created with ID:", newApplication._id);
 
-        // FIXME: This bidirectional link is critical for data integrity
-        // Without it, members can't see their application history
+        // TODO: Re-enable bidirectional linking
         // if (memberData) {
         //     await updateMemberWithApplication(memberId, memberData, newApplication._id);
         // }
@@ -70,8 +66,6 @@ export async function post_helloWebhook(request) {
         });
     } catch (error) {
         console.error("Error in webhook:", error.message);
-        // Generic error message prevents information leakage
-        // Detailed errors are logged server-side for debugging
         return serverError({
             body: {
                 status: "error",
@@ -83,23 +77,18 @@ export async function post_helloWebhook(request) {
 
 /**
  * Finds or creates a CRM contact record.
- * 
- * Uses Wix's appendOrCreateContact which intelligently merges data
- * if a contact with the same email already exists. This prevents
- * duplicate contacts while preserving existing contact history.
+ * Exported for testing.
  * 
  * @param {object} payload - Application form data
  * @returns {Promise<string>} Contact ID (existing or newly created)
  */
-async function findOrCreateContact(payload) {
+export async function findOrCreateContact(payload) {
     const contactInfo = {
         name: { first: payload.firstName || "", last: payload.lastName || "" },
         emails: [{ tag: 'MAIN', email: payload.email }],
         phones: payload.phone ? [{ tag: 'MOBILE', phone: payload.phone }] : [],
     };
     
-    // elevate() runs with admin permissions, bypassing normal access controls
-    // This is necessary since the webhook has no user context
     const result = await elevate(contacts.appendOrCreateContact)(contactInfo);
     console.log(`Processed contact with ID: ${result.contactId}.`);
     return result.contactId;
@@ -107,22 +96,16 @@ async function findOrCreateContact(payload) {
 
 /**
  * Finds existing site member or creates new one with welcome email.
- * 
- * Critical function that bridges CRM contacts with site membership.
- * New members receive a password setup email to claim their account.
- * 
- * WARNING: Currently uses hardcoded password "password123" - SECURITY RISK
- * TODO: Generate secure random passwords or use passwordless authentication
+ * Exported for testing.
  * 
  * @param {string} contactId - CRM contact ID to link with member
  * @param {string} email - Email for member registration
  * @returns {Promise<{memberId: string, memberData: object}>} Member details
  */
-async function findOrCreateMember(contactId, email) {
+export async function findOrCreateMember(contactId, email) {
     let member;
     
-    // Check if contact already has a member account
-    // This query uses the built-in link between contacts and members
+    // Check for existing member
     const memberQuery = await elevate(wixData.query)(MEMBERS_COLLECTION_ID)
         .eq("contactId", contactId)
         .find();
@@ -133,14 +116,13 @@ async function findOrCreateMember(contactId, email) {
         return { memberId: member._id, memberData: member };
     } else {
         try {
-            // SECURITY ISSUE: Hardcoded weak password
-            // All new members get the same password until they reset it
+            // Create new member
+            // TODO: Generate secure password instead of hardcoded one
             const registerMemberResult = await authentication.register(email, "password123");
             member = registerMemberResult.member;
             console.log(`Created new member with ID: ${member._id}`);
             
-            // This email allows users to set their own secure password
-            // Critical for security since we use a weak default
+            // Send password setup email
             await authentication.sendSetPasswordEmail(email);
             console.log(`Password setup email sent to ${email}`);
             return { memberId: member._id, memberData: member };
@@ -153,79 +135,71 @@ async function findOrCreateMember(contactId, email) {
 
 /**
  * Transforms raw form data into structured application record.
- * 
- * Maps between Fillout's form field names and our database schema.
- * Provides defaults for optional fields and cleans empty values.
- * 
- * Business Logic:
- * - All new applications start with status "pending" 
- * - applicationStage tracks workflow: Applied → Reviewed → Accepted/Rejected
- * - applicantStatus becomes "member" after acceptance
+ * Exported for testing.
  * 
  * @param {object} payload - Raw form submission data
  * @param {string} memberId - Associated member ID for linking
  * @returns {object} Cleaned application data ready for database
  */
-function buildApplicationData(payload, memberId) {
+export function buildApplicationData(payload, memberId) {
     const applicationData = {
-        // Link to member account for easy retrieval
+        // Link to member account
         applicant: memberId,
         
-        // Unique ID from form system for deduplication
+        // Unique ID from form system
         applicationID: payload.applicationID,
         
-        // Contact information - duplicated for denormalization/quick access
+        // Contact information
         email: payload.email,
         firstName: payload.firstName || "",
         lastName: payload.lastName || "",
         
-        // Workflow tracking fields
+        // Workflow tracking
         applicationStage: payload.applicationStage || "Applied",
         applicantStatus: payload.applicantStatus || "applicant",
         
-        // Ceramics experience assessment
+        // Experience data
         hasExperience: payload.hasExperience || false,
         experienceDescription: payload.experienceDescription || "",
         hasTechniques: payload.hasTechniques || [],
         practiceDescription: payload.practiceDescription || "",
         
-        // Safety knowledge is critical for studio access
+        // Safety knowledge
         knowsSafety: payload.knowsSafety || false,
         safetyDescription: payload.safetyDescription || "",
         
-        // Business planning data
+        // Business data
         purchaseIntention: payload.purchaseIntention || "",
         
-        // Diversity and inclusion tracking
+        // Demographics
         selfID: payload.selfID || false,
         
-        // Community fit assessment
+        // Community fit
         communityCommitment: payload.communityCommitment || "",
         communityInterest: payload.communityInterest || "",
         
-        // Additional contact info
+        // Contact info
         phone: payload.phone || "",
         address: payload.address || "",
         website: payload.website || "",
         instagram: payload.instagram || "",
         
-        // Marketing analytics
+        // Analytics
         source: payload.source || "",
         
-        // Open-ended field for special requests
+        // Additional info
         questions: payload.questions || "",
         
         // Metadata
         submissionDate: new Date(),
-        status: "pending",  // All applications start pending review
-        formSource: "fillout_form",  // Track which system submitted this
+        status: "pending",
+        formSource: "fillout_form",
         
-        // Preserve link to original form submission
+        // Original submission link
         filloutURL: payload.filloutURL || {}
     };
     
-    // Clean up empty fields to save storage and improve query performance
-    // Wix queries can behave differently with null vs undefined vs empty string
+    // Clean empty fields
     Object.keys(applicationData).forEach(key => {
         if (applicationData[key] === undefined || applicationData[key] === "") {
             delete applicationData[key];
@@ -236,36 +210,219 @@ function buildApplicationData(payload, memberId) {
 
 /**
  * Creates bidirectional link between member and application records.
- * 
- * This enables:
- * - Members to view their application history
- * - Staff to see all applications from a member
- * - Preventing duplicate active applications
- * 
- * Currently disabled (commented out) which breaks this functionality.
+ * Currently disabled but exported for future use and testing.
  * 
  * @param {string} memberId - Member record to update
  * @param {object} memberData - Current member data with existing applications
  * @param {string} applicationId - New application to link
  */
-async function updateMemberWithApplication(memberId, memberData, applicationId) {
+export async function updateMemberWithApplication(memberId, memberData, applicationId) {
     if (!memberData) {
         console.warn(`Cannot update member record for memberId ${memberId} because memberData is missing.`);
         return;
     }
     try {
-        // Append to existing applications array to maintain history
         const existingApplications = memberData.studioApplications || [];
         const memberUpdateData = {
             _id: memberId,
             studioApplications: [...existingApplications, applicationId],
-            lastApplicationDate: new Date()  // Helps identify most recent application
+            lastApplicationDate: new Date()
         };
         await wixData.update(MEMBERS_COLLECTION_ID, memberUpdateData);
         console.log("Updated member record with new application reference.");
     } catch (memberUpdateError) {
-        // Non-fatal error - application is saved even if member update fails
-        // This ensures we don't lose applications due to member record issues
         console.warn("Could not update member record:", memberUpdateError.message);
     }
+}
+
+// Simple GET endpoint for basic connectivity testing
+export function get_hello(request) {
+    return ok({
+        body: "Hello from Wix Backend!",
+        headers: {
+            'Content-Type': 'text/plain'
+        }
+    });
+}
+
+// Simple POST endpoint for testing JSON parsing
+export function post_hello(request) {
+    return request.body.json()
+        .then(data => {
+            return ok({
+                body: `Hello, ${data.name || 'World'}!`,
+                headers: {
+                    'Content-Type': 'text/plain'
+                }
+            });
+        })
+        .catch(() => {
+            return badRequest({
+                body: "Invalid JSON in request body"
+            });
+        });
+}
+
+// Add these functions to your existing src/backend/http-functions.js file
+// These provide HTTP endpoints to trigger your tests
+
+import { 
+    runAllTests,
+    testContactCreation,
+    testMemberCreation,
+    testApplicationDataBuilding,
+    testFullWebhookFlow,
+    testInvalidApiKey,
+    testMissingEmail
+} from 'backend/testing.jsw';
+import { ok, serverError, forbidden } from 'wix-http-functions';
+import { authentication } from 'wix-members-backend';
+
+/**
+ * Main test runner endpoint
+ * Access: https://yoursite.com/_functions/runTests
+ * 
+ * Security: Requires admin authentication
+ * Returns: JSON with test results
+ */
+export async function get_runTests(request) {
+    try {
+        // Security check - only allow admins to run tests
+        const member = await authentication.currentMember();
+        if (!member || !member.role || member.role.name !== 'Admin') {
+            return forbidden({
+                body: {
+                    error: 'Unauthorized. Admin access required to run tests.'
+                }
+            });
+        }
+        
+        console.log(`[TEST RUNNER] Starting test suite - triggered by ${member.loginEmail}`);
+        
+        // Run all tests
+        const results = await runAllTests();
+        
+        // Return formatted results
+        return ok({
+            body: results,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+    } catch (error) {
+        console.error('[TEST RUNNER] Error:', error);
+        return serverError({
+            body: {
+                error: 'Test suite failed',
+                message: error.message
+            }
+        });
+    }
+}
+
+/**
+ * Run individual test endpoint
+ * Access: https://yoursite.com/_functions/runTest?test=contactCreation
+ * 
+ * Available tests:
+ * - contactCreation
+ * - memberCreation
+ * - applicationDataBuilding
+ * - fullWebhookFlow
+ * - invalidApiKey
+ * - missingEmail
+ */
+export async function get_runTest(request) {
+    try {
+        // Security check
+        const member = await authentication.currentMember();
+        if (!member || !member.role || member.role.name !== 'Admin') {
+            return forbidden({
+                body: {
+                    error: 'Unauthorized. Admin access required to run tests.'
+                }
+            });
+        }
+        
+        // Get test name from query parameter
+        const testName = request.query.test;
+        if (!testName) {
+            return ok({
+                body: {
+                    error: 'Missing test parameter',
+                    availableTests: [
+                        'contactCreation',
+                        'memberCreation',
+                        'applicationDataBuilding',
+                        'fullWebhookFlow',
+                        'invalidApiKey',
+                        'missingEmail'
+                    ]
+                }
+            });
+        }
+        
+        console.log(`[TEST RUNNER] Running individual test: ${testName}`);
+        
+        // Map test names to functions
+        const testMap = {
+            'contactCreation': testContactCreation,
+            'memberCreation': testMemberCreation,
+            'applicationDataBuilding': testApplicationDataBuilding,
+            'fullWebhookFlow': testFullWebhookFlow,
+            'invalidApiKey': testInvalidApiKey,
+            'missingEmail': testMissingEmail
+        };
+        
+        const testFunction = testMap[testName];
+        if (!testFunction) {
+            return ok({
+                body: {
+                    error: `Unknown test: ${testName}`,
+                    availableTests: Object.keys(testMap)
+                }
+            });
+        }
+        
+        // Run the specific test
+        const result = await testFunction();
+        
+        return ok({
+            body: result,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+    } catch (error) {
+        console.error('[TEST RUNNER] Error:', error);
+        return serverError({
+            body: {
+                error: 'Test failed',
+                message: error.message
+            }
+        });
+    }
+}
+
+/**
+ * Test health check endpoint
+ * Access: https://yoursite.com/_functions/testHealth
+ * 
+ * Use this to verify the test system is working
+ */
+export async function get_testHealth(request) {
+    return ok({
+        body: {
+            status: 'healthy',
+            message: 'Test system is operational',
+            timestamp: new Date().toISOString(),
+            endpoints: {
+                runAllTests: '/_functions/runTests',
+                runSingleTest: '/_functions/runTest?test=testName',
+                health: '/_functions/testHealth'
+            }
+        }
+    });
 }
