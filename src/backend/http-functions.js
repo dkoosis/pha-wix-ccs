@@ -86,10 +86,12 @@ export async function post_helloWebhook(request) {
         
     } catch (error) {
         console.error("Error in webhook:", error);
+        console.error("Error type:", typeof error);
+        console.error("Error stack:", error?.stack);
         
         // Simple error message handling
         let errorMessage = "Webhook processing failed: ";
-        if (error.message) {
+        if (error && error.message) {
             if (error.message.includes('MEMBER_EMAIL_EXISTS')) {
                 errorMessage += "Member registration conflict. Please try again.";
             } else if (error.message.includes('permission')) {
@@ -97,6 +99,8 @@ export async function post_helloWebhook(request) {
             } else {
                 errorMessage += error.message;
             }
+        } else if (error && typeof error === 'string') {
+            errorMessage += error;
         } else {
             errorMessage += "Unknown error occurred.";
         }

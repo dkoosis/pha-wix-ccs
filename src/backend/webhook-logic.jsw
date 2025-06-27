@@ -21,32 +21,63 @@ export async function findOrCreateContact(payload) {
         phone: payload.phone
     }));
     
+    // Validate required fields
+    if (!payload.email) {
+        throw new Error('Email is required for contact creation');
+    }
+    
     const contactInfo = {
         name: {
-            first: payload.firstName,
-            last: payload.lastName
+            first: payload.firstName || '',
+            last: payload.lastName || ''
         },
         emails: [{
             email: payload.email,
             tag: 'MAIN'
-        }],
-        phones: payload.phone ? [{
-            phone: payload.phone,
-            tag: 'MAIN'
-        }] : []
+        }]
     };
+    
+    // Only add phone if it exists
+    if (payload.phone) {
+        contactInfo.phones = [{
+            phone: payload.phone,
+            tag: 'MOBILE'
+        }];
+    }
     
     console.log('Contact info to send:', JSON.stringify(contactInfo));
     
-    const result = await elevate(contacts.appendOrCreateContact)(contactInfo);
-    console.log(`Processed contact with ID: ${result.contactId}`);
-    return result.contactId;
+    try {
+        const result = await elevate(contacts.appendOrCreateContact)(contactInfo);
+        console.log(`Processed contact with ID: ${result.contactId}`);
+        return result.contactId;
+    } catch (crmError) {
+        console.error('CRM API Error:', crmError);
+        console.error('CRM Error details:', JSON.stringify(crmError));
+        throw new Error(`Contact creation failed: ${crmError?.message || 'CRM API error'}`);
+    }
 }
 
 /**
  * Finds existing site member or creates a new one with a welcome email.
  */
 export async function findOrCreateMember(contactId, email) {
+    // First check if member exists by email (to avoid registration errors)
+    const emailQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
+        .eq("loginEmail", email)
+        .find)();
+        
+    if (emailQuery.items.length > 0) {
+        const member = emailQuery.items[0];
+        console.log(`Found existing member by email: ${member._id}`);
+        // Update contactId if missing
+        if (!member.contactId) {
+            member.contactId = contactId;
+            await elevate(wixData.update)(MEMBERS_COLLECTION_ID, member);
+        }
+        return { memberId: member._id, memberData: member };
+    }
+    
     // Check if member exists by contactId
     const memberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
         .eq("contactId", contactId)
@@ -56,41 +87,34 @@ export async function findOrCreateMember(contactId, email) {
         const member = memberQuery.items[0];
         console.log(`Found existing Member ID: ${member._id}`);
         return { memberId: member._id, memberData: member };
-    } else {
+    }
+    
+    // No existing member found, create new one
+    try {
+        console.log(`Creating new member for email: ${email}`);
+        const tempPassword = generateTempPassword();
+        const registerMemberResult = await elevate(register)(email, tempPassword, {
+            contactInfo: {
+                contactId: contactId
+            }
+        });
+        const member = registerMemberResult.member;
+        console.log(`Created new member with ID: ${member._id}`);
+        
+        // Send password setup email (don't fail if this fails)
         try {
-            // Register new member
-            const tempPassword = generateTempPassword();
-            const registerMemberResult = await elevate(register)(email, tempPassword, {
-                contactInfo: {
-                    contactId: contactId
-                }
-            });
-            const member = registerMemberResult.member;
-            console.log(`Created new member with ID: ${member._id}`);
-            
-            // Send password setup email
             await elevate(sendSetPasswordEmail)(email);
             console.log(`Password setup email sent to ${email}`);
-            
-            return { memberId: member._id, memberData: member };
-        } catch (error) {
-            console.error(`Error creating member for contact ${contactId}:`, error);
-            
-            // Handle case where email already exists
-            if (error && error.message && error.message.includes('MEMBER_EMAIL_EXISTS')) {
-                // Try to find existing member by email
-                const existingMemberQuery = await elevate(wixData.query(MEMBERS_COLLECTION_ID)
-                    .eq("loginEmail", email)
-                    .find)();
-                    
-                if(existingMemberQuery.items.length > 0){
-                    const existingMember = existingMemberQuery.items[0];
-                    console.log(`Member with email ${email} already exists. Returning existing member ID: ${existingMember._id}.`);
-                    return { memberId: existingMember._id, memberData: existingMember };
-                }
-            }
-            throw new Error(`Failed to create member account: ${error?.message || 'Unknown error'}`);
+        } catch (emailError) {
+            console.log(`Failed to send password email, continuing anyway`);
         }
+        
+        return { memberId: member._id, memberData: member };
+    } catch (registerError) {
+        console.error(`Registration failed, generating temporary ID`);
+        // Create a temporary member ID so we don't lose the application
+        const tempMemberId = `pending_${Date.now()}`;
+        return { memberId: tempMemberId, memberData: null };
     }
 }
 
@@ -141,8 +165,8 @@ export function buildApplicationData(payload, memberId) {
  * Creates a bidirectional link between member and application records.
  */
 export async function updateMemberWithApplication(memberId, memberData, applicationId) {
-    if (!memberId || !applicationId || memberId.startsWith('temp_')) {
-        console.log('Skipping member update: missing or temporary memberId');
+    if (!memberId || !applicationId || memberId.startsWith('pending_')) {
+        console.log('Skipping member update: missing or pending memberId');
         return;
     }
     
