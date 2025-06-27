@@ -61,6 +61,7 @@ export async function post_helloWebhook(request) {
         const { memberId, memberData } = await findOrCreateMember(contactId, payload.email);
         const applicationData = await buildApplicationData(payload, memberId);
 
+        console.log("New Studio Application record create request...");
         const newApplication = await createApplicationRecord(applicationData);
         console.log("New Studio Application record created with ID:", newApplication._id);
 
