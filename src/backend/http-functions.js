@@ -2,7 +2,7 @@
 // Simplified version with API key authentication
 
 import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
-import { authentication } from 'wix-members-backend';
+import { currentMember } from 'wix-members-backend';
 import { elevate } from 'wix-auth';
 import { getSecret } from 'wix-secrets-backend';
 import wixData from 'wix-data';
@@ -14,7 +14,7 @@ import {
     buildApplicationData,
     updateMemberWithApplication,
     createApplicationRecord
-} from 'backend/webhook-logic';
+} from 'backend/webhook-logic.jsw';
 
 // Import test runners
 import { 
@@ -25,7 +25,7 @@ import {
     testFullWebhookFlow,
     testInvalidApiKey,
     testMissingEmail
-} from 'backend/testing';
+} from 'backend/testing.jsw';
 
 // Secret keys stored in Wix Secrets Manager
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
@@ -137,7 +137,7 @@ export async function post_hello(request) {
  */
 export async function get_runTests(request) {
     try {
-        const member = await authentication.currentMember();
+        const member = await currentMember();
         if(!member) return forbidden({ body: JSON.stringify({ error: 'Unauthorized. Please log in.' }) });
 
         const roles = await member.getRoles();
@@ -163,7 +163,7 @@ export async function get_runTests(request) {
  */
 export async function get_runTest(request) {
     try {
-        const member = await authentication.currentMember();
+        const member = await currentMember();
         if(!member) return forbidden({ body: JSON.stringify({ error: 'Unauthorized. Please log in.' }) });
 
         const roles = await member.getRoles();

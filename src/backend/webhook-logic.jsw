@@ -2,7 +2,7 @@
 // Simplified version with only essential fixes
 
 import { contacts } from 'wix-crm-backend';
-import { authentication } from 'wix-members-backend';
+import { register, sendSetPasswordEmail, queryMembers } from 'wix-members-backend';
 import { elevate } from 'wix-auth';
 import wixData from 'wix-data';
 
@@ -42,7 +42,7 @@ export async function findOrCreateMember(contactId, email) {
         try {
             // Register new member
             const tempPassword = generateTempPassword();
-            const registerMemberResult = await elevate(authentication.register)(email, tempPassword, {
+            const registerMemberResult = await elevate(register)(email, tempPassword, {
                 contactInfo: {
                     contactId: contactId
                 }
@@ -51,7 +51,7 @@ export async function findOrCreateMember(contactId, email) {
             console.log(`Created new member with ID: ${member._id}`);
             
             // Send password setup email
-            await elevate(authentication.sendSetPasswordEmail)(email);
+            await elevate(sendSetPasswordEmail)(email);
             console.log(`Password setup email sent to ${email}`);
             
             return { memberId: member._id, memberData: member };

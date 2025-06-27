@@ -1,7 +1,7 @@
 // src/backend/admin-tools.jsw
 // Simplified version with only essential fixes
 
-import { authentication } from 'wix-members-backend';
+import { currentMember, queryMembers, getMember, sendSetPasswordEmail } from 'wix-members-backend';
 import wixData from 'wix-data';
 import { elevate } from 'wix-auth';
 import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
@@ -13,7 +13,7 @@ const APPLICATIONS_COLLECTION_ID = "Import1";
  * Helper function to check if current user is admin
  */
 async function requireAdmin() {
-    const member = await authentication.currentMember();
+    const member = await currentMember();
     if (!member) {
         throw new Error('Unauthorized: Not logged in');
     }
@@ -51,7 +51,7 @@ export async function findOrphanedApplications() {
  * FIXED: No more N+1 queries
  */
 export async function findMembersWithoutProfiles() {
-    const authMembersResult = await elevate(authentication.queryMembers)({})
+    const authMembersResult = await elevate(queryMembers)({})
         .limit(1000)
         .find();
     
@@ -99,7 +99,7 @@ export async function findMembersWithoutProfiles() {
 export async function syncMemberProfile(memberId) {
     try {
         // Get auth member data
-        const authMember = await elevate(authentication.getMember)(memberId);
+        const authMember = await elevate(getMember)(memberId);
         if (!authMember) {
             throw new Error(`Member ${memberId} not found in auth system`);
         }
@@ -150,7 +150,7 @@ export async function linkOrphanedApplication(applicationId) {
         }
         
         // Find member by email
-        const authQuery = await elevate(authentication.queryMembers)({
+        const authQuery = await elevate(queryMembers)({
             loginEmail: application.email
         });
         
@@ -179,7 +179,7 @@ export async function linkOrphanedApplication(applicationId) {
  */
 export async function resendPasswordEmail(email) {
     try {
-        await elevate(authentication.sendSetPasswordEmail)(email);
+        await elevate(sendSetPasswordEmail)(email);
         console.log(`Password email sent to ${email}`);
         return { success: true, email };
     } catch (error) {
@@ -238,7 +238,7 @@ export async function generateSystemReport() {
             .ge('submissionDate', new Date(now - 30 * day))
             .count(),
         // Member queries
-        elevate(authentication.queryMembers)({}).count(),
+        elevate(queryMembers)({}).count(),
         elevate(wixData.query)(MEMBERS_COLLECTION_ID).count()
     ]);
     
