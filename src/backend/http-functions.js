@@ -1,6 +1,5 @@
 // src/backend/http-functions.js
-// This file defines the HTTP endpoints for the application.
-// It imports business logic from webhook-logic.jsw and test runners from testing.jsw.
+// Simplified version with API key authentication
 
 import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
 import { authentication } from 'wix-members-backend';
@@ -8,21 +7,16 @@ import { elevate } from 'wix-auth';
 import { getSecret } from 'wix-secrets-backend';
 import wixData from 'wix-data';
 
-// Import the core business logic from .jsw files (without the extension)
-// Velo Note: If you see a "Cannot find module" error here, ensure that
-// 'webhook-logic.jsw' exists in your 'backend' folder and that the Velo editor
-// has been refreshed or synchronized.
-// At the top of http-functions.js, add the new function to your import list
+// Import business logic
 import { 
     findOrCreateContact, 
     findOrCreateMember, 
     buildApplicationData,
     updateMemberWithApplication,
-    createApplicationRecord // <-- Add this line
+    createApplicationRecord
 } from 'backend/webhook-logic';
 
-// Import the test runners from .jsw files (without the extension)
-// Velo Note: Similarly, ensure 'testing.jsw' is in the 'backend' folder.
+// Import test runners
 import { 
     runAllTests,
     testContactCreation,
@@ -39,32 +33,40 @@ const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
 
 /**
  * Main webhook handler for Fillout form submissions.
- * @param {import('wix-http-functions').WixHttpFunctionRequest} request
- * @returns {Promise<import('wix-http-functions').WixHttpFunctionResponse>}
  */
 export async function post_helloWebhook(request) {
     try {
+        // Verify API key
         const receivedApiKey = request.headers['x-api-key'];
         const storedApiKey = await getSecret(FILLOUT_API_KEY_NAME);
         if (receivedApiKey !== storedApiKey) {
             return forbidden({ body: "Invalid API Key" });
         }
 
+        // Parse and validate payload
         const payload = await request.body.json();
         
         if (!payload.email) {
             return badRequest({ body: "Email is required in the payload" });
         }
+        
         console.log("Processing studio application for email:", payload.email);
 
+        // Step 1: Create/find contact
         const contactId = await findOrCreateContact(payload);
+        
+        // Step 2: Create/find member
         const { memberId, memberData } = await findOrCreateMember(contactId, payload.email);
-        const applicationData = await buildApplicationData(payload, memberId);
+        
+        // Step 3: Build application data
+        const applicationData = buildApplicationData(payload, memberId);
 
-        console.log("New Studio Application record create request...");
+        // Step 4: Create application
+        console.log("Creating Studio Application record...");
         const newApplication = await createApplicationRecord(applicationData);
-        console.log("New Studio Application record created with ID:", newApplication._id);
+        console.log("Studio Application created with ID:", newApplication._id);
 
+        // Step 5: Link application to member (non-critical)
         if (memberData) {
             await updateMemberWithApplication(memberId, memberData, newApplication._id);
         }
@@ -73,15 +75,35 @@ export async function post_helloWebhook(request) {
             body: {
                 status: "success",
                 message: "Studio application processed successfully.",
-                data: { contactId, memberId, applicationId: newApplication._id }
+                data: { 
+                    contactId, 
+                    memberId, 
+                    applicationId: newApplication._id 
+                }
             }
         });
+        
     } catch (error) {
         console.error("Error in webhook:", error);
+        
+        // Simple error message handling
+        let errorMessage = "Webhook processing failed: ";
+        if (error.message) {
+            if (error.message.includes('MEMBER_EMAIL_EXISTS')) {
+                errorMessage += "Member registration conflict. Please try again.";
+            } else if (error.message.includes('permission')) {
+                errorMessage += "Database permission error. Please check collection settings.";
+            } else {
+                errorMessage += error.message;
+            }
+        } else {
+            errorMessage += "Unknown error occurred.";
+        }
+        
         return serverError({
             body: {
                 status: "error",
-                message: `Webhook processing failed: ${error.message}`
+                message: errorMessage
             }
         });
     }
@@ -108,19 +130,13 @@ export async function post_hello(request) {
     }
 }
 
-
 // === TEST ENDPOINTS ===
 
 /**
  * Main test runner endpoint. Requires admin authentication.
- * @param {import('wix-http-functions').WixHttpFunctionRequest} request
- * @returns {Promise<import('wix-http-functions').WixHttpFunctionResponse>}
  */
 export async function get_runTests(request) {
     try {
-        // CORRECTED: 'currentMember' is a function that returns a promise.
-        // Velo Note: If you see a "does not exist on type" error, your local
-        // Velo environment's type definitions may be out of sync.
         const member = await authentication.currentMember();
         if(!member) return forbidden({ body: JSON.stringify({ error: 'Unauthorized. Please log in.' }) });
 
@@ -131,7 +147,7 @@ export async function get_runTests(request) {
             return forbidden({ body: JSON.stringify({ error: 'Unauthorized. Admin access required.' }) });
         }
 
-        const loginEmail = (member.profile && member.profile.loginEmail) ? member.profile.loginEmail : 'Unknown Admin';
+        const loginEmail = member.loginEmail || 'Unknown Admin';
         console.log(`[TEST RUNNER] Starting test suite - triggered by ${loginEmail}`);
         const results = await runAllTests();
         return ok({ body: results, headers: { 'Content-Type': 'application/json' } });
@@ -144,12 +160,9 @@ export async function get_runTests(request) {
 
 /**
  * Run an individual test. Requires admin authentication.
- * @param {import('wix-http-functions').WixHttpFunctionRequest} request
- * @returns {Promise<import('wix-http-functions').WixHttpFunctionResponse>}
  */
 export async function get_runTest(request) {
     try {
-        // CORRECTED: 'currentMember' is a function.
         const member = await authentication.currentMember();
         if(!member) return forbidden({ body: JSON.stringify({ error: 'Unauthorized. Please log in.' }) });
 
@@ -191,8 +204,6 @@ export async function get_runTest(request) {
 
 /**
  * Test health check endpoint.
- * @param {import('wix-http-functions').WixHttpFunctionRequest} request
- * @returns {import('wix-http-functions').WixHttpFunctionResponse}
  */
 export function get_testHealth(request) {
     return ok({

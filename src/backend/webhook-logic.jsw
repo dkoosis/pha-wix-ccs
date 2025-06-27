@@ -1,6 +1,5 @@
 // src/backend/webhook-logic.jsw
-// This file contains the core business logic for the webhook.
-// It is imported by both http-functions.js and testing.jsw.
+// Simplified version with only essential fixes
 
 import { contacts } from 'wix-crm-backend';
 import { authentication } from 'wix-members-backend';
@@ -13,9 +12,6 @@ const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
 
 /**
  * Finds or creates a CRM contact record.
- * Exported for testing and use in the main webhook.
- * * @param {object} payload - Application form data
- * @returns {Promise<string>} Contact ID (existing or newly created)
  */
 export async function findOrCreateContact(payload) {
     const contactInfo = {
@@ -24,18 +20,13 @@ export async function findOrCreateContact(payload) {
         phones: payload.phone ? [{ tag: 'MOBILE', phone: payload.phone }] : [],
     };
     
-    // CORRECTED: The contactInfo object should be the first argument.
     const result = await elevate(contacts.appendOrCreateContact)(contactInfo);
-    console.log(`Processed contact with ID: ${result.contactId}.`);
+    console.log(`Processed contact with ID: ${result.contactId}`);
     return result.contactId;
 }
 
 /**
  * Finds existing site member or creates a new one with a welcome email.
- * Exported for testing and use in the main webhook.
- * * @param {string} contactId - CRM contact ID to link with member
- * @param {string} email - Email for member registration
- * @returns {Promise<{memberId: string, memberData: object | null}>} Member details
  */
 export async function findOrCreateMember(contactId, email) {
     // Check for existing member by contactId
@@ -49,8 +40,9 @@ export async function findOrCreateMember(contactId, email) {
         return { memberId: member._id, memberData: member };
     } else {
         try {
-            // Elevate the entire registration process
-            const registerMemberResult = await elevate(authentication.register)(email, "password123", {
+            // Register new member
+            const tempPassword = generateTempPassword();
+            const registerMemberResult = await elevate(authentication.register)(email, tempPassword, {
                 contactInfo: {
                     contactId: contactId
                 }
@@ -61,19 +53,22 @@ export async function findOrCreateMember(contactId, email) {
             // Send password setup email
             await elevate(authentication.sendSetPasswordEmail)(email);
             console.log(`Password setup email sent to ${email}`);
+            
             return { memberId: member._id, memberData: member };
         } catch (error) {
             console.error(`Error creating member for contact ${contactId}:`, error);
-            // Handle race condition where email exists but wasn't found by contactId
+            
+            // Handle case where email already exists
             if (error.message && error.message.includes('MEMBER_EMAIL_EXISTS')) {
-                const existingMemberQuery = await elevate(wixData.query("Members/PrivateMembersData")
+                const existingMemberQuery = await elevate(wixData.query)("Members/PrivateMembersData")
                     .eq("loginEmail", email)
-                    .find)();                 
+                    .find();
+                    
                 if(existingMemberQuery.items.length > 0){
                     const existingMember = existingMemberQuery.items[0];
                     console.log(`Member with email ${email} already exists. Returning existing member ID: ${existingMember._id}.`);
                     return { memberId: existingMember._id, memberData: existingMember };
-                 }
+                }
             }
             throw new Error(`Failed to create member account: ${error.message}`);
         }
@@ -82,10 +77,6 @@ export async function findOrCreateMember(contactId, email) {
 
 /**
  * Transforms raw form data into a structured application record.
- * Exported for testing and use in the main webhook.
- * * @param {object} payload - Raw form submission data
- * @param {string} memberId - Associated member ID for linking
- * @returns {object} Cleaned application data ready for database
  */
 export function buildApplicationData(payload, memberId) {
     const applicationData = {
@@ -118,7 +109,7 @@ export function buildApplicationData(payload, memberId) {
         filloutURL: payload.filloutURL
     };
 
-    // Clean undefined/null fields to avoid database errors
+    // Clean undefined/null fields
     Object.keys(applicationData).forEach(key => {
         if (applicationData[key] === undefined || applicationData[key] === null) {
             delete applicationData[key];
@@ -129,26 +120,26 @@ export function buildApplicationData(payload, memberId) {
 
 /**
  * Creates a bidirectional link between member and application records.
- * * @param {string} memberId - Member record to update
- * @param {object} memberData - Current member data with existing applications
- * @param {string} applicationId - New application to link
+ * FIXED: Uses get-modify-update pattern to prevent field deletion
  */
 export async function updateMemberWithApplication(memberId, memberData, applicationId) {
     if (!memberId || !applicationId) {
-        throw new Error('Both memberId and applicationId are required');
-    }
-    
-    if (!memberData) {
-        // Fetch the member data if not provided
-        const memberItem = await elevate(wixData.get)(MEMBERS_COLLECTION_ID, memberId);
-        if (!memberItem) {
-            throw new Error(`Member not found: ${memberId}`);
-        }
-        memberData = memberItem;
+        console.log('Skipping member update: missing memberId or applicationId');
+        return;
     }
     
     try {
-        const existingApplications = memberData.studioApplications || [];
+        // Get the full member record if not provided
+        let fullMemberData = memberData;
+        if (!fullMemberData) {
+            fullMemberData = await elevate(wixData.get)(MEMBERS_COLLECTION_ID, memberId);
+            if (!fullMemberData) {
+                console.log(`Member ${memberId} not found in collection`);
+                return;
+            }
+        }
+        
+        const existingApplications = fullMemberData.studioApplications || [];
         
         // Prevent duplicate application references
         if (existingApplications.includes(applicationId)) {
@@ -156,25 +147,22 @@ export async function updateMemberWithApplication(memberId, memberData, applicat
             return;
         }
         
-        const memberUpdateData = {
-            _id: memberId,
-            studioApplications: [...existingApplications, applicationId],
-            lastApplicationDate: new Date()
-        };
+        // Update the full member object
+        fullMemberData.studioApplications = [...existingApplications, applicationId];
+        fullMemberData.lastApplicationDate = new Date();
         
-        await elevate(wixData.update)(MEMBERS_COLLECTION_ID, memberUpdateData);
+        await elevate(wixData.update)(MEMBERS_COLLECTION_ID, fullMemberData);
         console.log(`Updated member ${memberId} with application ${applicationId}`);
+        
     } catch (error) {
         console.error('Failed to update member with application:', error);
-        throw new Error(`Failed to link application to member: ${error.message}`);
+        // Don't throw - we don't want to fail the entire webhook
     }
 }
 
 /**
  * Inserts the finalized application record into the database.
- * This is elevated to bypass permissions for anonymous webhook calls.
- * @param {object} applicationData - The application object to save.
- * @returns {Promise<object>} The newly created application item from the database.
+ * Collection is public-writable, so no special permissions needed.
  */
 export async function createApplicationRecord(applicationData) {
     if (!applicationData) {
@@ -182,8 +170,21 @@ export async function createApplicationRecord(applicationData) {
     }
     console.log("Inserting application record into database...");
     
-    const newApplication = await elevate(wixData.insert)(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData);
+    const newApplication = await wixData.insert(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData);
     
     console.log("New Studio Application record created with ID:", newApplication._id);
     return newApplication;
+}
+
+/**
+ * Helper function to generate a secure temporary password.
+ * NOTE: Uses Math.random() due to Velo limitations
+ */
+function generateTempPassword() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
 }

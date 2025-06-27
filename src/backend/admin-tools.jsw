@@ -1,0 +1,304 @@
+// src/backend/admin-tools.jsw
+// Simplified version with only essential fixes
+
+import { authentication } from 'wix-members-backend';
+import wixData from 'wix-data';
+import { elevate } from 'wix-auth';
+import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
+
+const MEMBERS_COLLECTION_ID = "Members/PrivateMembersData";
+const APPLICATIONS_COLLECTION_ID = "Import1";
+
+/**
+ * Helper function to check if current user is admin
+ */
+async function requireAdmin() {
+    const member = await authentication.currentMember();
+    if (!member) {
+        throw new Error('Unauthorized: Not logged in');
+    }
+    
+    const roles = await member.getRoles();
+    const isAdmin = roles.some(role => role.name === 'Admin');
+    
+    if (!isAdmin) {
+        throw new Error('Unauthorized: Admin access required');
+    }
+    
+    return member;
+}
+
+/**
+ * Find applications without linked members
+ */
+export async function findOrphanedApplications() {
+    const applications = await wixData.query(APPLICATIONS_COLLECTION_ID)
+        .isEmpty('applicant')
+        .limit(1000) // Increased from 100
+        .find();
+        
+    console.log(`Found ${applications.items.length} applications without members`);
+    
+    if (applications.items.length === 1000) {
+        console.warn('Query limit reached. There may be more orphaned applications.');
+    }
+    
+    return applications.items;
+}
+
+/**
+ * Find members without profile records
+ * FIXED: No more N+1 queries
+ */
+export async function findMembersWithoutProfiles() {
+    const authMembersResult = await elevate(authentication.queryMembers)({})
+        .limit(1000)
+        .find();
+    
+    if (authMembersResult.items.length === 0) {
+        return [];
+    }
+    
+    const authMemberMap = new Map(
+        authMembersResult.items.map(m => [m._id, m])
+    );
+    
+    // Get all profile IDs in a single query
+    const memberIds = Array.from(authMemberMap.keys());
+    const profileQuery = await elevate(wixData.query)(MEMBERS_COLLECTION_ID)
+        .hasSome("_id", memberIds)
+        .limit(1000)
+        .find();
+    
+    const profileIds = new Set(profileQuery.items.map(p => p._id));
+    
+    // Find members without profiles
+    const orphaned = [];
+    for (const [memberId, authMember] of authMemberMap.entries()) {
+        if (!profileIds.has(memberId)) {
+            orphaned.push({
+                memberId: authMember._id,
+                email: authMember.loginEmail,
+                registrationDate: authMember.registrationDate
+            });
+        }
+    }
+    
+    console.log(`Found ${orphaned.length} members without profiles`);
+    
+    if (authMembersResult.items.length === 1000) {
+        console.warn('Query limit reached. There may be more members to check.');
+    }
+    
+    return orphaned;
+}
+
+/**
+ * Sync a member from auth to profile collection
+ */
+export async function syncMemberProfile(memberId) {
+    try {
+        // Get auth member data
+        const authMember = await elevate(authentication.getMember)(memberId);
+        if (!authMember) {
+            throw new Error(`Member ${memberId} not found in auth system`);
+        }
+        
+        // Check if profile exists
+        const existingProfile = await elevate(wixData.get)(MEMBERS_COLLECTION_ID, memberId)
+            .catch(() => null);
+            
+        if (existingProfile) {
+            console.log('Profile already exists');
+            return existingProfile;
+        }
+        
+        // Create profile
+        const profile = {
+            _id: memberId,
+            loginEmail: authMember.loginEmail,
+            registrationDate: authMember.registrationDate,
+            memberStatus: 'synced',
+            studioApplications: []
+        };
+        
+        const newProfile = await elevate(wixData.insert)(MEMBERS_COLLECTION_ID, profile);
+        
+        console.log(`Created profile for member ${memberId}`);
+        return newProfile;
+        
+    } catch (error) {
+        console.error(`Failed to sync member ${memberId}:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Link an orphaned application to a member by email
+ */
+export async function linkOrphanedApplication(applicationId) {
+    try {
+        // Get the application
+        const application = await wixData.get(APPLICATIONS_COLLECTION_ID, applicationId);
+        if (!application) {
+            throw new Error('Application not found');
+        }
+        
+        if (application.applicant) {
+            console.log('Application already has a member');
+            return application;
+        }
+        
+        // Find member by email
+        const authQuery = await elevate(authentication.queryMembers)({
+            loginEmail: application.email
+        });
+        
+        if (authQuery.items.length === 0) {
+            throw new Error(`No member found with email ${application.email}`);
+        }
+        
+        const member = authQuery.items[0];
+        
+        // Update application with member ID
+        application.applicant = member._id;
+        const updated = await wixData.update(APPLICATIONS_COLLECTION_ID, application);
+        
+        console.log(`Linked application ${applicationId} to member ${member._id}`);
+        return updated;
+        
+    } catch (error) {
+        console.error(`Failed to link application ${applicationId}:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Resend password setup email to a member
+ * FIXED: Now re-throws errors properly
+ */
+export async function resendPasswordEmail(email) {
+    try {
+        await elevate(authentication.sendSetPasswordEmail)(email);
+        console.log(`Password email sent to ${email}`);
+        return { success: true, email };
+    } catch (error) {
+        console.error(`Failed to send password email to ${email}:`, error);
+        throw error; // Re-throw for proper error response
+    }
+}
+
+/**
+ * Generate admin report of application/member status
+ * Uses Promise.all for efficiency
+ */
+export async function generateSystemReport() {
+    const report = {
+        timestamp: new Date().toISOString(),
+        applications: {
+            total: 0,
+            withMembers: 0,
+            orphaned: 0
+        },
+        members: {
+            total: 0,
+            withProfiles: 0,
+            withoutProfiles: 0
+        },
+        recentActivity: {
+            last24Hours: 0,
+            last7Days: 0,
+            last30Days: 0
+        }
+    };
+    
+    const now = new Date();
+    const day = 24 * 60 * 60 * 1000;
+    
+    // Run all queries in parallel
+    const [
+        allApps,
+        orphanedApps,
+        last24Hours,
+        last7Days,
+        last30Days,
+        authMembersCount,
+        profilesCount
+    ] = await Promise.all([
+        // Application queries
+        wixData.query(APPLICATIONS_COLLECTION_ID).count(),
+        wixData.query(APPLICATIONS_COLLECTION_ID).isEmpty('applicant').count(),
+        wixData.query(APPLICATIONS_COLLECTION_ID)
+            .ge('submissionDate', new Date(now - day))
+            .count(),
+        wixData.query(APPLICATIONS_COLLECTION_ID)
+            .ge('submissionDate', new Date(now - 7 * day))
+            .count(),
+        wixData.query(APPLICATIONS_COLLECTION_ID)
+            .ge('submissionDate', new Date(now - 30 * day))
+            .count(),
+        // Member queries
+        elevate(authentication.queryMembers)({}).count(),
+        elevate(wixData.query)(MEMBERS_COLLECTION_ID).count()
+    ]);
+    
+    // Populate report
+    report.applications.total = allApps;
+    report.applications.orphaned = orphanedApps;
+    report.applications.withMembers = allApps - orphanedApps;
+    
+    report.members.total = authMembersCount;
+    report.members.withProfiles = profilesCount;
+    report.members.withoutProfiles = authMembersCount - profilesCount;
+    
+    report.recentActivity.last24Hours = last24Hours;
+    report.recentActivity.last7Days = last7Days;
+    report.recentActivity.last30Days = last30Days;
+    
+    console.log('System Report:', JSON.stringify(report, null, 2));
+    return report;
+}
+
+// HTTP endpoints for admin tools
+export async function get_adminReport(request) {
+    try {
+        await requireAdmin();
+        const report = await generateSystemReport();
+        return ok({ body: report });
+    } catch (error) {
+        if (error.message.includes('Unauthorized')) {
+            return forbidden({ body: error.message });
+        }
+        return serverError({ body: { error: error.message } });
+    }
+}
+
+export async function post_adminFix(request) {
+    try {
+        await requireAdmin();
+        
+        const { action, target } = await request.body.json();
+        
+        let result;
+        switch (action) {
+            case 'syncMember':
+                result = await syncMemberProfile(target);
+                break;
+            case 'linkApplication':
+                result = await linkOrphanedApplication(target);
+                break;
+            case 'resendEmail':
+                result = await resendPasswordEmail(target);
+                break;
+            default:
+                return badRequest({ body: 'Unknown action' });
+        }
+        
+        return ok({ body: { success: true, result } });
+    } catch (error) {
+        if (error.message.includes('Unauthorized')) {
+            return forbidden({ body: error.message });
+        }
+        return serverError({ body: { error: error.message } });
+    }
+}

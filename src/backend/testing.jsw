@@ -1,6 +1,5 @@
 // src/backend/testing.jsw
-// Comprehensive test suite for Studio Application Webhook.
-// This module now imports from webhook-logic.jsw to avoid circular dependencies.
+// Simplified test suite for Studio Application Webhook
 
 import { elevate } from 'wix-auth';
 import wixData from 'wix-data';
@@ -8,12 +7,13 @@ import { getSecret } from 'wix-secrets-backend';
 import { contacts } from 'wix-crm-backend';
 import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
 
-// Import the functions we want to test from the new logic file
+// Import the functions we want to test
 import { 
     findOrCreateContact, 
-    findOrCreateMember, 
+    findOrCreateMember,
     buildApplicationData,
-    updateMemberWithApplication
+    updateMemberWithApplication,
+    createApplicationRecord
 } from 'backend/webhook-logic';
 
 // Test configuration
@@ -95,10 +95,8 @@ export async function testApplicationDataBuilding() {
     }
 }
 
+// === INTEGRATION TEST ===
 
-// === INTEGRATION TESTS ===
-
-// This test now simulates the logic flow of the webhook directly
 export async function testFullWebhookFlow() {
     const testName = 'Full Webhook Flow';
     const testPayload = generateTestPayload();
@@ -117,10 +115,10 @@ export async function testFullWebhookFlow() {
         const applicationData = buildApplicationData(testPayload, memberId);
         
         // 4. Insert Application
-        const newApplication = await elevate(wixData.insert)(TEST_CONFIG.collections.applications, applicationData);
+        const newApplication = await createApplicationRecord(applicationData);
         if (!newApplication._id) throw new Error("Application insertion failed in flow.");
         
-        // 5. (Optional) Update Member
+        // 5. Update Member (optional)
         await updateMemberWithApplication(memberId, memberData, newApplication._id);
         
         console.log('[TEST] Full Webhook Flow successful.');
@@ -134,30 +132,40 @@ export async function testFullWebhookFlow() {
     }
 }
 
-// These tests remain conceptual as they test the http-function layer.
-// They are kept here to be called from the endpoint, but true E2E tests should be external.
+// These tests are placeholders - they need to be run via HTTP
 export async function testInvalidApiKey() {
-    return createTestResult('Invalid API Key Handling', 'pass', { message: 'This test must be run via an HTTP call to the /runTest endpoint to be effective.'});
+    return createTestResult('Invalid API Key Handling', 'pass', { 
+        message: 'This test must be run via an HTTP call to the /runTest endpoint to be effective.'
+    });
 }
 
 export async function testMissingEmail() {
-    return createTestResult('Missing Email Handling', 'pass', { message: 'This test must be run via an HTTP call to the /runTest endpoint to be effective.'});
+    return createTestResult('Missing Email Handling', 'pass', { 
+        message: 'This test must be run via an HTTP call to the /runTest endpoint to be effective.'
+    });
 }
-
 
 // === TEST CLEANUP ===
 export async function cleanupTestData() {
     if (!TEST_CONFIG.cleanupAfterTests) return;
     try {
         let itemsRemoved = 0;
-        const query = wixData.query(TEST_CONFIG.collections.applications).startsWith('email', TEST_CONFIG.testEmailPrefix);
+        const query = wixData.query(TEST_CONFIG.collections.applications)
+            .startsWith('email', TEST_CONFIG.testEmailPrefix);
         let result = await elevate(query.find)();
+        
         while(result.items.length > 0) {
             const idsToRemove = result.items.map(item => item._id);
             await elevate(wixData.bulkRemove)(TEST_CONFIG.collections.applications, idsToRemove);
             itemsRemoved += idsToRemove.length;
-            result = await elevate(result.next)();
+            
+            if (result.hasNext()) {
+                result = await elevate(result.next)();
+            } else {
+                break;
+            }
         }
+        
         console.log(`[CLEANUP] Removed ${itemsRemoved} test applications.`);
     } catch (error) {
         console.error('[CLEANUP] Error during cleanup:', error);
