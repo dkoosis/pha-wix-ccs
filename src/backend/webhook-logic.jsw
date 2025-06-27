@@ -199,6 +199,16 @@ function generateTempPassword() {
  * @param {object} payload - The form submission data containing contact information.
  * @returns {Promise<string>} The ID of the found or created contact.
  */
+// Replace your existing findOrCreateContact function with this corrected version:
+
+import { elevate } from 'wix-auth';
+import { contacts } from 'wix-crm-backend';
+
+/**
+ * Finds an existing CRM contact by email or creates a new one.
+ * @param {object} payload - The form submission data containing contact information.
+ * @returns {Promise<string>} The ID of the found or created contact.
+ */
 export async function findOrCreateContact(payload) {
     if (!payload.email) {
         throw new Error("Email is required to find or create a contact.");
@@ -208,7 +218,8 @@ export async function findOrCreateContact(payload) {
         // First, try to find an existing contact by email
         console.log(`Looking for existing contact with email: ${payload.email}`);
         
-        const queryResult = await contacts.queryContacts()
+        // Elevate permissions for CRM query
+        const queryResult = await elevate(contacts.queryContacts)()
             .eq("info.emails.email", payload.email)
             .limit(1)
             .find();
@@ -241,7 +252,6 @@ export async function findOrCreateContact(payload) {
         const extendedFields = {};
         
         // Map the form fields to custom contact fields
-        // Note: You may need to adjust these field names based on your CRM setup
         if (payload.address) {
             contactInfo.addresses = [{
                 address: {
@@ -257,8 +267,8 @@ export async function findOrCreateContact(payload) {
             };
         }
         
-        // Create the new contact
-        const newContact = await contacts.createContact({
+        // Create the new contact with elevated permissions
+        const newContact = await elevate(contacts.createContact)({
             info: contactInfo,
             ...(Object.keys(extendedFields).length > 0 && { extendedFields })
         });
