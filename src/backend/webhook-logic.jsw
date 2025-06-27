@@ -169,3 +169,21 @@ export async function updateMemberWithApplication(memberId, memberData, applicat
         throw new Error(`Failed to link application to member: ${error.message}`);
     }
 }
+
+/**
+ * Inserts the finalized application record into the database.
+ * This is elevated to bypass permissions for anonymous webhook calls.
+ * @param {object} applicationData - The application object to save.
+ * @returns {Promise<object>} The newly created application item from the database.
+ */
+export async function createApplicationRecord(applicationData) {
+    if (!applicationData) {
+        throw new Error("Application data cannot be empty.");
+    }
+    console.log("Inserting application record into database...");
+    
+    const newApplication = await elevate(wixData.insert)(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData);
+    
+    console.log("New Studio Application record created with ID:", newApplication._id);
+    return newApplication;
+}

@@ -12,11 +12,13 @@ import wixData from 'wix-data';
 // Velo Note: If you see a "Cannot find module" error here, ensure that
 // 'webhook-logic.jsw' exists in your 'backend' folder and that the Velo editor
 // has been refreshed or synchronized.
+// At the top of http-functions.js, add the new function to your import list
 import { 
     findOrCreateContact, 
     findOrCreateMember, 
     buildApplicationData,
-    updateMemberWithApplication
+    updateMemberWithApplication,
+    createApplicationRecord // <-- Add this line
 } from 'backend/webhook-logic';
 
 // Import the test runners from .jsw files (without the extension)
@@ -59,7 +61,7 @@ export async function post_helloWebhook(request) {
         const { memberId, memberData } = await findOrCreateMember(contactId, payload.email);
         const applicationData = await buildApplicationData(payload, memberId);
 
-        const newApplication = await elevate(wixData.insert)(STUDIO_APPLICATIONS_COLLECTION_ID, applicationData);
+        const newApplication = await createApplicationRecord(applicationData);
         console.log("New Studio Application record created with ID:", newApplication._id);
 
         if (memberData) {
