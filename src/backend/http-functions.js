@@ -3,10 +3,10 @@
 
 import { ok, serverError, forbidden } from 'wix-http-functions';
 import { getSecret } from 'wix-secrets-backend';
-import { testCollectionAccess } from 'backend/data-access.jsw';
+import { testCollectionAccess } from 'backend/data-access';
 
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
-const CODE_VERSION = "v.e6f559d"; // The script will replace this line
+const CODE_VERSION = "v.8bf5fd6"; // The script will replace this line
 
 // Test endpoint - with API key validation
 export async function get_ping(request) {
