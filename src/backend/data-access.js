@@ -1,52 +1,95 @@
 // src/backend/data-access.js
+// Simple data access layer for StudioMembershipApplications
 
 import wixData from 'wix-data';
 
+const APPLICATIONS_COLLECTION = 'StudioMembershipApplications';
+
 /**
- * A reusable function to test or perform a basic query on any Wix Data collection.
- * This is intended for use by other backend modules.
- * @param {string} collectionName The ID of the Wix Data collection to query.
- * @returns {Promise<object>} An object indicating success and the number of items found.
- * @throws {Error} Throws an error if the collection cannot be accessed.
+ * Test if we can access the collection
  */
-export async function testCollectionAccess(collectionName) {
-    if (!collectionName) {
-        throw new Error("Collection name is required for testCollectionAccess.");
-    }
+export async function testCollectionAccess(collectionName = APPLICATIONS_COLLECTION) {
     try {
-        const results = await wixData.query(collectionName).limit(1).find();
+        const results = await wixData.query(collectionName)
+            .limit(1)
+            .find({ suppressAuth: true });
+            
         return {
             success: true,
-            count: results.totalCount
+            count: results.totalCount,
+            message: `Collection accessible. Total items: ${results.totalCount}`
         };
     } catch (error) {
-        console.error(`Data access error for collection "${collectionName}":`, error);
-        throw new Error(`Failed to query collection: '${collectionName}'.`);
+        console.error(`Cannot access collection "${collectionName}":`, error);
+        return {
+            success: false,
+            error: error.message,
+            code: error.code || 'UNKNOWN'
+        };
     }
 }
 
 /**
- * A second function from your data-access module.
- * (Assuming its purpose - please adjust if this is incorrect)
- * @param {string} someParameter A parameter needed for this function's logic.
- * @returns {Promise<any>} The result of the function's operation.
+ * Simple hello world insert into StudioMembershipApplications
  */
-export async function anotherDataAccessFunction(someParameter) {
-    // Add the logic for your second function here.
-    // For example:
-    if (!someParameter) {
-        throw new Error("A parameter is required for anotherDataAccessFunction.");
-    }
+export async function insertHelloWorld() {
+    const timestamp = new Date();
+    const testData = {
+        // Basic required fields based on your CSV structure
+        firstName: 'Hello',
+        lastName: 'World',
+        email: `hello_${timestamp.getTime()}@example.com`,
+        phoneNumber: '+1234567890',
+        website: 'https://hello-world.example.com',
+        hasIndependentExperience: true,
+        studioTechniques: 'Test Insert',
+        
+        // Add a title for easy identification
+        title: `Hello World Test - ${timestamp.toISOString()}`
+    };
+    
+    console.log('Attempting to insert:', JSON.stringify(testData, null, 2));
+    
     try {
-        // Example: another query or some other backend logic
-        const anotherResult = await wixData.query("AnotherCollection")
-            .eq("title", someParameter)
-            .find();
-            
-        return anotherResult.items;
-
+        const result = await wixData.insert(APPLICATIONS_COLLECTION, testData, { suppressAuth: true });
+        console.log('Insert successful:', result._id);
+        
+        return {
+            success: true,
+            id: result._id,
+            data: result
+        };
     } catch (error) {
-        console.error(`Error in anotherDataAccessFunction with param "${someParameter}":`, error);
-        throw new Error(`Operation failed in anotherDataAccessFunction.`);
+        console.error('Insert failed:', error);
+        return {
+            success: false,
+            error: error.message,
+            code: error.code || 'UNKNOWN'
+        };
+    }
+}
+
+/**
+ * Get recent test entries
+ */
+export async function getRecentTestEntries(limit = 5) {
+    try {
+        const results = await wixData.query(APPLICATIONS_COLLECTION)
+            .startsWith('email', 'hello_')
+            .descending('_createdDate')
+            .limit(limit)
+            .find({ suppressAuth: true });
+            
+        return {
+            success: true,
+            count: results.items.length,
+            items: results.items
+        };
+    } catch (error) {
+        console.error('Query failed:', error);
+        return {
+            success: false,
+            error: error.message
+        };
     }
 }

@@ -1,15 +1,14 @@
 // src/backend/http-functions.js
-// Minimal version with API key - Step 1
-
+// Minimal version - Step by step testing
 
 import { ok, serverError, forbidden } from 'wix-http-functions';
 import { getSecret } from 'wix-secrets-backend';
-import { testCollectionAccess } from 'backend/data-access.js';
+import { testCollectionAccess, insertHelloWorld, getRecentTestEntries } from 'backend/data-access.js';
 
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
-const CODE_VERSION = "v.2217cac"; // The script will replace this line
+const CODE_VERSION = "v.847d5a8";
 
-// Test endpoint - with API key validation
+// === STEP 1: Basic connectivity ===
 export async function get_ping(request) {
     console.log(`⚡ Executing /ping | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
     
@@ -19,15 +18,16 @@ export async function get_ping(request) {
         const storedApiKey = await getSecret(FILLOUT_API_KEY_NAME);
         
         if (receivedApiKey !== storedApiKey) {
-            console.log(`❌ Ping failed: Invalid API key | 🔑 Received: ${receivedApiKey?.substring(0, 8)}...`);
+            console.log(`❌ Ping failed: Invalid API key`);
             return forbidden({ 
                 body: {
-                    error: "Invalid API Key"
+                    error: "Invalid API Key",
+                    version: CODE_VERSION
                 }
             });
         }
         
-        console.log(`✅ Ping authenticated | 🔑 Valid API key`);
+        console.log(`✅ Ping authenticated`);
         
         return ok({
             body: {
@@ -42,15 +42,16 @@ export async function get_ping(request) {
         return serverError({
             body: {
                 error: "Failed to validate API key",
-                message: error.message
+                message: error.message,
+                version: CODE_VERSION
             }
         });
     }
 }
 
-// POST endpoint - accepts form data with minimal validation
-export async function post_echo(request) {
-    console.log(`⚡ Executing /echo | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
+// === STEP 2: Test collection access ===
+export async function get_testAccess(request) {
+    console.log(`⚡ Executing /testAccess | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
     
     try {
         // Verify API key
@@ -58,44 +59,43 @@ export async function post_echo(request) {
         const storedApiKey = await getSecret(FILLOUT_API_KEY_NAME);
         
         if (receivedApiKey !== storedApiKey) {
-            console.log(`❌ Echo failed: Invalid API key`);
+            console.log(`❌ TestAccess failed: Invalid API key`);
             return forbidden({ 
                 body: {
-                    error: "Invalid API Key"
+                    error: "Invalid API Key",
+                    version: CODE_VERSION
                 }
             });
         }
         
-        // Parse JSON payload
-        const payload = await request.body.json();
-        console.log(`✅ Echo received | 📧 Email: ${payload.email} | 🔑 ID: ${payload.applicationID}`);
+        // Test collection access
+        const result = await testCollectionAccess();
+        
+        console.log(`${result.success ? '✅' : '❌'} Collection access test: ${result.message || result.error}`);
         
         return ok({
             body: {
-                status: "success",
-                message: "Payload received",
+                status: result.success ? "success" : "failed",
                 timestamp: new Date().toISOString(),
                 version: CODE_VERSION,
-                received: {
-                    email: payload.email,
-                    applicationID: payload.applicationID
-                }
+                collectionTest: result
             }
         });
     } catch (error) {
-        console.error(`❌ Echo error: ${error.message}`);
+        console.error(`❌ TestAccess error: ${error.message}`);
         return serverError({
             body: {
-                error: "Echo processing failed",
-                message: error.message
+                error: "Test failed",
+                message: error.message,
+                version: CODE_VERSION
             }
         });
     }
 }
 
-// Update the testData function logging
-export async function get_testData(request) {
-    console.log(`⚡ Executing /testData | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
+// === STEP 3: Hello World Insert ===
+export async function post_helloInsert(request) {
+    console.log(`⚡ Executing /helloInsert | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
     
     try {
         // Verify API key
@@ -103,40 +103,96 @@ export async function get_testData(request) {
         const storedApiKey = await getSecret(FILLOUT_API_KEY_NAME);
         
         if (receivedApiKey !== storedApiKey) {
-            console.log(`❌ TestData failed: Invalid API key`);
+            console.log(`❌ HelloInsert failed: Invalid API key`);
             return forbidden({ 
                 body: {
-                    error: "Invalid API Key"
+                    error: "Invalid API Key",
+                    version: CODE_VERSION
                 }
             });
         }
         
-        // Test collection access using the separated module
-        const testResult = await testCollectionAccess("Import1");
+        // Do the insert
+        console.log('📝 Attempting hello world insert...');
+        const result = await insertHelloWorld();
         
-        // Fix: Use appropriate icon based on actual success
-        if (testResult.success) {
-            console.log(`✅ Data test passed | 📊 Found ${testResult.count} items`);
+        if (result.success) {
+            console.log(`✅ Insert successful! ID: ${result.id}`);
+            return ok({
+                body: {
+                    status: "success",
+                    message: "Hello World inserted successfully",
+                    timestamp: new Date().toISOString(),
+                    version: CODE_VERSION,
+                    insertResult: {
+                        id: result.id,
+                        email: result.data.email
+                    }
+                }
+            });
         } else {
-            console.log(`❌ Data test failed | Error: ${testResult.error}`);
+            console.log(`❌ Insert failed: ${result.error}`);
+            return serverError({
+                body: {
+                    status: "error",
+                    message: "Insert failed",
+                    error: result.error,
+                    code: result.code,
+                    version: CODE_VERSION
+                }
+            });
         }
+    } catch (error) {
+        console.error(`❌ HelloInsert error: ${error.message}`);
+        return serverError({
+            body: {
+                error: "Insert operation failed",
+                message: error.message,
+                version: CODE_VERSION
+            }
+        });
+    }
+}
+
+// === STEP 4: View recent test entries ===
+export async function get_recentTests(request) {
+    console.log(`⚡ Executing /recentTests | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
+    
+    try {
+        // Verify API key
+        const receivedApiKey = request.headers['x-api-key'];
+        const storedApiKey = await getSecret(FILLOUT_API_KEY_NAME);
+        
+        if (receivedApiKey !== storedApiKey) {
+            console.log(`❌ RecentTests failed: Invalid API key`);
+            return forbidden({ 
+                body: {
+                    error: "Invalid API Key",
+                    version: CODE_VERSION
+                }
+            });
+        }
+        
+        // Get recent entries
+        const result = await getRecentTestEntries();
+        
+        console.log(`${result.success ? '✅' : '❌'} Found ${result.count || 0} recent test entries`);
         
         return ok({
             body: {
-                status: "success",
+                status: result.success ? "success" : "failed",
                 timestamp: new Date().toISOString(),
                 version: CODE_VERSION,
-                tests: {
-                    query: testResult
-                }
+                testEntries: result
             }
         });
     } catch (error) {
-        console.error(`❌ TestData error: ${error.message}`);
+        console.error(`❌ RecentTests error: ${error.message}`);
         return serverError({
             body: {
-                error: "Data test failed",
-                message: error.message
+                error: "Query failed",
+                message: error.message,
+                version: CODE_VERSION
             }
         });
     }
