@@ -29,7 +29,7 @@ import {
 } from 'backend/testing.jsw';
 
 // ... imports
-const CODE_VERSION = "git:f4c0ec6"; // The script will replace this line
+const CODE_VERSION = "git:2a1f791"; // The script will replace this line
 // Secret keys stored in Wix Secrets Manager
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
 const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
