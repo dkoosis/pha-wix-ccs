@@ -3,10 +3,10 @@
 
 import { ok, serverError, forbidden } from 'wix-http-functions';
 import { getSecret } from 'wix-secrets-backend';
-import wixData from 'wix-data';
+import { testCollectionAccess } from 'backend/data-access.jsw';
 
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
-const CODE_VERSION = "v.cd04489"; // The script will replace this line
+const CODE_VERSION = "v.1e2323a"; // The script will replace this line
 
 // Test endpoint - with API key validation
 export async function get_ping(request) {
@@ -91,9 +91,7 @@ export async function post_echo(request) {
         });
     }
 }
-// Add this after the post_echo function
 
-// Test wixData access
 export async function get_testData(request) {
     console.log(`⚡ Executing /testData | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
     
@@ -111,21 +109,9 @@ export async function get_testData(request) {
             });
         }
         
-        // Test 1: Query a collection (using your applications collection)
-        const testCollection = "Import1"; // Your applications collection
-        let querySuccess = false;
-        let itemCount = 0;
-        
-        try {
-            const results = await wixData.query(testCollection)
-                .limit(5)
-                .find();
-            querySuccess = true;
-            itemCount = results.items.length;
-            console.log(`✅ Query test passed | 📊 Found ${itemCount} items in ${testCollection}`);
-        } catch (queryError) {
-            console.error(`❌ Query test failed: ${queryError.message}`);
-        }
+        // Test collection access using the separated module
+        const testResult = await testCollectionAccess("Import1");
+        console.log(`✅ Data test completed | Success: ${testResult.success}`);
         
         return ok({
             body: {
@@ -133,11 +119,7 @@ export async function get_testData(request) {
                 timestamp: new Date().toISOString(),
                 version: CODE_VERSION,
                 tests: {
-                    query: {
-                        success: querySuccess,
-                        collection: testCollection,
-                        itemCount: itemCount
-                    }
+                    query: testResult
                 }
             }
         });
