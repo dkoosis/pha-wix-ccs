@@ -6,7 +6,7 @@ import { getSecret } from 'wix-secrets-backend';
 import { testCollectionAccess, insertHelloWorld, getRecentTestEntries } from 'backend/data-access.js';
 
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
-const CODE_VERSION = "v.847d5a8";
+const CODE_VERSION = "v.f2ec709";
 
 // === STEP 1: Basic connectivity ===
 export async function get_ping(request) {

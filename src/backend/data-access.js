@@ -93,3 +93,103 @@ export async function getRecentTestEntries(limit = 5) {
         };
     }
 }
+
+/**
+ * Create a full application record with member link
+ */
+export async function createApplication(applicationData) {
+    if (!applicationData || !applicationData.email) {
+        throw new Error("Application data with email is required");
+    }
+
+    console.log('[APP] Creating application with data:', JSON.stringify(applicationData, null, 2));
+
+    try {
+        const result = await wixData.insert(APPLICATIONS_COLLECTION, applicationData, { suppressAuth: true });
+        console.log(`[APP] Application created with ID: ${result._id}`);
+        
+        return {
+            success: true,
+            applicationId: result._id,
+            application: result
+        };
+    } catch (error) {
+        console.error('[APP] Failed to create application:', error);
+        return {
+            success: false,
+            error: error.message,
+            code: error.code || 'UNKNOWN'
+        };
+    }
+}
+
+/**
+ * Build application data from form payload
+ */
+export function buildApplicationData(payload, memberId) {
+    const applicationData = {
+        // Link to member
+        // TODO: Confirm 'applicantProfile' is the correct field name in StudioMembershipApplications
+        // This should match the reference field in the collection schema
+        applicantProfile: memberId,
+        
+        // Basic info
+        firstName: payload.firstName || '',
+        lastName: payload.lastName || '',
+        email: payload.email || '',
+        phoneNumber: payload.phone || payload.phoneNumber || '',
+        website: payload.website || '',
+        
+        // Experience fields
+        hasIndependentExperience: payload.hasExperience || false,
+        studioTechniques: Array.isArray(payload.hasTechniques) 
+            ? payload.hasTechniques.join(', ') 
+            : (payload.hasTechniques || payload.studioTechniques || ''),
+        
+        // Title for easy identification
+        title: `${payload.firstName} ${payload.lastName} - ${new Date().toISOString().split('T')[0]}`
+    };
+
+    // Clean undefined/null fields
+    Object.keys(applicationData).forEach(key => {
+        if (applicationData[key] === undefined || applicationData[key] === null) {
+            delete applicationData[key];
+        }
+    });
+    
+    return applicationData;
+}
+
+/**
+ * Link application to member profile
+ */
+export async function linkApplicationToMember(memberId, applicationId) {
+    if (!memberId || !applicationId || memberId.startsWith('pending_')) {
+        console.log('[APP] Skipping link: invalid member or application ID');
+        return { success: false, reason: 'Invalid IDs' };
+    }
+
+    try {
+        // Add reference to member's studioApplications field
+        // TODO: Verify insertReference is correct method vs updating array field
+        // TODO: Check if reference already exists before inserting?
+        // TODO: Confirm field name 'studioApplications' matches the Members collection schema
+        await wixData.insertReference(
+            'Members/PrivateMembersData',
+            'studioApplications',
+            memberId,
+            applicationId,
+            { suppressAuth: true }
+        );
+        
+        console.log(`[APP] Linked application ${applicationId} to member ${memberId}`);
+        return { success: true };
+        
+    } catch (error) {
+        console.error('[APP] Failed to link application to member:', error);
+        return { 
+            success: false, 
+            error: error.message 
+        };
+    }
+}
