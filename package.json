@@ -9,6 +9,7 @@
   "scripts": {
     "postinstall": "wix sync-types",
     "dev": "wix dev",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "prepare": "husky install"
   }
 }
