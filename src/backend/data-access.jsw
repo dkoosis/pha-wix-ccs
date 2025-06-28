@@ -9,9 +9,9 @@ import { elevate } from 'wix-auth';
  */
 export async function testCollectionAccess(collectionId) {
     try {
-        const results = await elevate(wixData.query)(collectionId)
-            .limit(5)
-            .find();
+        // Fix: elevate the entire query chain
+        const query = wixData.query(collectionId).limit(5);
+        const results = await elevate(query.find)();
         
         return {
             success: true,

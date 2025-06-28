@@ -6,7 +6,7 @@ import { getSecret } from 'wix-secrets-backend';
 import { testCollectionAccess } from 'backend/data-access.jsw';
 
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
-const CODE_VERSION = "v.1e2323a"; // The script will replace this line
+const CODE_VERSION = "v.e6f559d"; // The script will replace this line
 
 // Test endpoint - with API key validation
 export async function get_ping(request) {
@@ -92,6 +92,7 @@ export async function post_echo(request) {
     }
 }
 
+// Update the testData function logging
 export async function get_testData(request) {
     console.log(`⚡ Executing /testData | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
     
@@ -111,7 +112,13 @@ export async function get_testData(request) {
         
         // Test collection access using the separated module
         const testResult = await testCollectionAccess("Import1");
-        console.log(`✅ Data test completed | Success: ${testResult.success}`);
+        
+        // Fix: Use appropriate icon based on actual success
+        if (testResult.success) {
+            console.log(`✅ Data test passed | 📊 Found ${testResult.count} items`);
+        } else {
+            console.log(`❌ Data test failed | Error: ${testResult.error}`);
+        }
         
         return ok({
             body: {
