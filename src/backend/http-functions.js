@@ -1,12 +1,13 @@
 // src/backend/http-functions.js
 // Minimal version with API key - Step 1
-// WTF version
+
+
 import { ok, serverError, forbidden } from 'wix-http-functions';
 import { getSecret } from 'wix-secrets-backend';
 import { testCollectionAccess } from 'backend/data-access.js';
 
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
-const CODE_VERSION = "v.3b44676"; // The script will replace this line
+const CODE_VERSION = "v.2217cac"; // The script will replace this line
 
 // Test endpoint - with API key validation
 export async function get_ping(request) {
