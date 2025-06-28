@@ -13,7 +13,7 @@ try {
     let fileContent = fs.readFileSync(targetFile, 'utf8');
 
     // 3. Define the version string using the Git hash
-    const versionString = `const CODE_VERSION = "git:${gitHash}";`;
+    const versionString = `const CODE_VERSION = "v.${gitHash}";`;
 
     // 4. Replace the existing version line or add it if it doesn't exist
     if (fileContent.includes('const CODE_VERSION =')) {

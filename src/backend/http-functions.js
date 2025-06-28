@@ -1,11 +1,14 @@
 // src/backend/http-functions.js
 // Simplified version with API key authentication
-// v1154A
 
 import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
 import { currentMember } from 'wix-members-backend';
 import { elevate } from 'wix-auth';
 import { getSecret } from 'wix-secrets-backend';
+// Add these imports to the top of http-functions.js if they don't exist
+import { contacts } from 'wix-crm-backend';
+import { register, sendSetPasswordEmail } from 'wix-members-backend';
+
 import wixData from 'wix-data';
 
 // Import business logic
@@ -29,7 +32,7 @@ import {
 } from 'backend/testing.jsw';
 
 // ... imports
-const CODE_VERSION = "git:c53e515"; // The script will replace this line
+const CODE_VERSION = "v.4ad12b5"; // The script will replace this line
 // Secret keys stored in Wix Secrets Manager
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
 const STUDIO_APPLICATIONS_COLLECTION_ID = "Import1";
@@ -221,4 +224,60 @@ export function get_testHealth(request) {
             timestamp: new Date().toISOString(),
         }
     });
+}
+
+
+// -------------------- ADD THIS ENTIRE FUNCTION TO http-functions.js --------------------
+
+/**
+ * An admin-only endpoint to run isolated diagnostic tests.
+ * This will test both the CRM access and the Member Registration methods.
+ */
+export async function get_runDiagnosticTests(request) {
+    // Security: Only allow site owners to run this test
+    if (request.context.user.role !== "Owner") {
+        return forbidden({ body: "Admins only" });
+    }
+
+    console.log("--- Running Isolated Diagnostic Tests ---");
+    const results = {};
+
+    // --- Test 1: Direct CRM Access ---
+    try {
+        console.log("--- Diagnosis: Testing Direct CRM Access ---");
+        const queryResult = await elevate(contacts.queryContacts)().limit(1).find();
+        console.log("CRM Query successful. Found items:", queryResult.items.length);
+
+        const testContact = {
+            name: { first: "DirectCRM", last: "Test" },
+            emails: [{ email: `direct.crm.${Date.now()}@example.com`, tag: "MAIN" }]
+        };
+        const createResult = await elevate(contacts.createContact)(testContact);
+        console.log("SUCCESS: Direct CRM Create successful. ID:", createResult.contact._id);
+        results.crmAccess = { status: "Success", ...createResult };
+    } catch (error) {
+        console.error("FAILURE: Direct CRM Access Test Failed.", error);
+        results.crmAccess = { status: "Failed", error: { message: error.message, code: error.code } };
+    }
+
+
+    // --- Test 2: Member Registration Method ---
+    try {
+        console.log("--- Diagnosis: Testing Member Registration Method ---");
+        const testEmail = `member.reg.${Date.now()}@example.com`;
+        const regOptions = {
+            contactInfo: {
+                name: { first: "MemberReg", last: "Test" },
+                emails: [{ email: testEmail, tag: 'MAIN' }],
+            }
+        };
+        const regResult = await elevate(register)(testEmail, null, regOptions);
+        console.log("SUCCESS: Member Registration successful. MemberID:", regResult.member._id, "ContactID:", regResult.contact._id);
+        results.memberRegistration = { status: "Success", ...regResult };
+    } catch (error) {
+        console.error("FAILURE: Member Registration Test Failed.", error);
+        results.memberRegistration = { status: "Failed", error: { message: error.message, code: error.code } };
+    }
+
+    return ok({ diagnosticResults: results });
 }
