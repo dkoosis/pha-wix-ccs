@@ -1,10 +1,9 @@
 {
-  "velo": {
-    "permissions": {
-      "applications": [
+  "backend": {
+    "authorization": {
+      "permissions": [
         {
-          "name": "wix-crm-backend.contacts",
-          "permissions": ["create-contact"]
+          "name": "wix-crm-backend.contacts.manage"
         }
       ]
     }
