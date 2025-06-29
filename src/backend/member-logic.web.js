@@ -1,9 +1,7 @@
 // src/backend/member-logic.web.js
-// Site Member management logic
-// TODO: Verify elevate() usage pattern - some operations use elevate(), others use suppressAuth
+// Site Member management logic with race condition prevention
 
 import { register, sendSetPasswordEmail, queryMembers } from 'wix-members-backend';
-import { elevate } from 'wix-auth';
 import wixData from 'wix-data';
 
 const MEMBERS_COLLECTION = 'Members/PrivateMembersData';
@@ -21,106 +19,106 @@ function generateTempPassword() {
 }
 
 /**
- * Find or create a site member
- */
-// src/backend/member-logic.web.js
-
-import { members } from 'wix-members-backend';
-
-/**
- * Creates a Wix Site Member from contact info, handling cases where the member already exists.
- * This is the recommended "try-to-create, then-catch-duplicate" pattern.
+ * Creates a Wix Site Member from contact info using the robust
+ * "try-to-create-first" pattern to avoid race conditions.
  *
  * @param {object} contactInfo - A Wix CRM contact object.
  * @returns {Promise<{member: object, wasCreated: boolean}>}
  */
 export async function findOrCreateMember(contactInfo) {
-    if (!contactInfo || !contactInfo.info.emails[0].email) {
+    // Validate input - using correct Wix CRM contact structure
+    if (!contactInfo || !contactInfo.info?.emails?.[0]?.email) {
         throw new Error("Contact info with a valid email is required to create a member.");
     }
 
-    const memberInfo = {
+    const email = contactInfo.info.emails[0].email;
+    const registrationOptions = {
         contactInfo: {
-            firstName: contactInfo.info.name.first,
-            lastName: contactInfo.info.name.last,
-            emails: [{ email: contactInfo.info.emails[0].email, tag: "MAIN" }]
+            contactId: contactInfo._id,  // Include the contact ID for linking
+            firstName: contactInfo.info.name?.first || '',
+            lastName: contactInfo.info.name?.last || ''
         }
     };
 
     try {
-        // Velo Best Practice: Directly attempt to create the member.
-        // This is more robust than checking for existence first.
-        const member = await members.createMember(memberInfo);
-        return { member, wasCreated: true };
+        // BEST PRACTICE: Try to create first (avoids race conditions)
+        console.log(`Attempting to register new member for: ${email}`);
+        const registrationResult = await register(email, generateTempPassword(), registrationOptions);
+        const newMember = registrationResult.member;
+        console.log(`Successfully created new member with ID: ${newMember._id}`);
+
+        // Send password setup email (non-blocking)
+        sendSetPasswordEmail(email).catch(err => {
+            console.error(`Non-critical error: Failed to send password setup email to ${email}:`, err);
+        });
+
+        return { member: newMember, wasCreated: true };
 
     } catch (error) {
-        // Velo Best Practice: Catch specific errors. If the member already exists,
-        // Wix will throw an error. We catch it and retrieve the existing member.
-        // Note: You should confirm the exact error code from Wix documentation or testing.
-        // 'wix-members-backend_member-already-exists' is a likely candidate.
-        if (error.message.includes("member already exists")) { // A common error signature
+        // Only query if registration failed due to existing member
+        if (error.message && error.message.toLowerCase().includes("already")) {
+            console.log(`Member with email ${email} already exists. Querying for existing member...`);
             
-            // If the member exists, fetch their data using their email.
-            const existingMember = await members.getMemberByEmail(memberInfo.contactInfo.emails[0].email);
-            return { member: existingMember, wasCreated: false };
+            const existingMembers = await queryMembers()
+                .eq("loginEmail", email)
+                .find({ suppressAuth: true });
 
-        } else {
-            // For any other unexpected error, log it and re-throw it so the
-            // calling function knows something went wrong.
-            console.error("An unexpected error occurred while creating a member:", error);
-            throw error;
+            if (existingMembers.items.length > 0) {
+                console.log(`Found existing member: ${existingMembers.items[0]._id}`);
+                return { member: existingMembers.items[0], wasCreated: false };
+            } else {
+                // Critical edge case: member exists but can't be found
+                console.error(`FATAL: Member registration for ${email} failed, but could not find existing member.`);
+                throw new Error(`Could not create or find member for ${email}. Database inconsistency detected.`);
+            }
         }
+        
+        // Re-throw any other errors
+        console.error("Unhandled error in findOrCreateMember:", error);
+        throw error;
     }
 }
 
 /**
- * Check if a member has a profile record
- */
-async function checkMemberProfile(memberId) {
-    try {
-        // TODO: Verify behavior - does wixData.get throw error or return null for missing records?
-        const profile = await wixData.get(MEMBERS_COLLECTION, memberId, { suppressAuth: true });
-        return !!profile;
-    } catch (error) {
-        // Profile doesn't exist
-        return false;
-    }
-}
-
-/**
- * Ensures a member has a profile in the PrivateMembersData collection.
- * Creates one if it does not exist.
+ * Ensures a member has a profile in the PrivateMembersData collection using atomic upsert.
+ * Uses wixData.save() to avoid race conditions.
+ * 
  * @param {object} memberInfo The member object from wix-members-backend.
- * @returns {Promise<{success: boolean, memberProfile?: object, created: boolean, error?: string}>}
+ * @returns {Promise<{success: boolean, memberProfile?: object, created?: boolean, error?: string}>}
  */
 export async function ensureMemberProfile(memberInfo) {
-    const options = {
-        suppressAuth: true
-    };
+    const options = { suppressAuth: true };
+    const memberId = memberInfo._id;
 
     try {
-        const memberId = memberInfo._id;
-
-        // 1. Check if a record already exists in PrivateMembersData.
-        const existingProfile = await wixData.get("Members/PrivateMembersData", memberId, options);
-
-        if (existingProfile) {
-            console.log(`PrivateMembersData record for member ${memberId} already exists.`);
-            return { success: true, memberProfile: existingProfile, created: false };
-        }
-
-        // 2. If not, create one. This is necessary because unlike FullData,
-        // the PrivateMembersData record is not created automatically.
-        const profileToInsert = {
-            _id: memberId,
+        // BEST PRACTICE: Use save() for atomic upsert operation
+        // This avoids the race condition of check-then-write
+        const profileToSave = {
+            _id: memberId,  // Required for save() to know whether to update or insert
+            loginEmail: memberInfo.loginEmail,
+            registrationDate: memberInfo.registrationDate || new Date(),
+            // Add any other default fields you want for new profiles
+            // Note: save() will NOT overwrite existing fields unless explicitly provided
         };
 
-        const newProfile = await wixData.insert("Members/PrivateMembersData", profileToInsert, options);
-        console.log(`Created PrivateMembersData record for member ${memberId}.`);
-        return { success: true, memberProfile: newProfile, created: true };
+        const savedProfile = await wixData.save(MEMBERS_COLLECTION, profileToSave, options);
+        console.log(`Ensured PrivateMembersData record for member ${memberId}`);
+        
+        // Note: wixData.save() doesn't tell us if it was an insert or update
+        // If you need to know, you can check _createdDate vs _updatedDate
+        const created = savedProfile._createdDate === savedProfile._updatedDate;
+        
+        return { 
+            success: true, 
+            memberProfile: savedProfile,
+            created: created
+        };
 
     } catch (error) {
-        console.error("Error ensuring member profile in PrivateMembersData:", error);
-        return { success: false, created: false, error: error.message };
+        console.error(`Error ensuring member profile in PrivateMembersData for ${memberId}:`, error);
+        return { 
+            success: false, 
+            error: error.message 
+        };
     }
 }

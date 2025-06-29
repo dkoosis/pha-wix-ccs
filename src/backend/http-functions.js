@@ -1,18 +1,131 @@
 // src/backend/http-functions.js
-// Minimal version - Step by step testing
 
 import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
-import { isValidApiKey } from 'backend/auth-utils.web.js';
-import { testCollectionAccess, insertHelloWorld, getRecentTestEntries, createApplication, buildApplicationData, linkApplicationToMember } from 'backend/data-access.js';
-import { findOrCreateContact } from 'backend/contact-logic.web.js';
-import { findOrCreateMember, ensureMemberProfile } from 'backend/member-logic.web.js';
+import { currentMember } from 'wix-members-backend';
+import { getSecret } from 'wix-secrets-backend';
+import wixData from 'wix-data';
 
-const CODE_VERSION = "v.e95a23c";
+// Import from .web.js files (not .jsw)
+import { findOrCreateContact } from 'backend/contact-logic.web';
+import { findOrCreateMember, ensureMemberProfile } from 'backend/member-logic.web';
+import { 
+    testCollectionAccess,
+    insertHelloWorld,
+    getRecentTestEntries,
+    createApplication,
+    buildApplicationData
+} from 'backend/data-access';
 
-// === STEP 1: Basic connectivity ===
-export async function get_ping(request) {
-    console.log(`⚡ Executing /ping | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
+const CODE_VERSION = "v.8f2a53e"; // Version tracking
+const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
+
+/**
+ * Main webhook handler for Fillout form submissions.
+ * Processes studio membership applications through the full workflow.
+ */
+export async function post_studioApplication(request) {
+    console.log(`⚡ Executing /studioApplication | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
     
+    try {
+        // Verify API key
+        const receivedApiKey = request.headers['x-api-key'];
+        const storedApiKey = await getSecret(FILLOUT_API_KEY_NAME);
+        if (receivedApiKey !== storedApiKey) {
+            return forbidden({ body: "Invalid API Key" });
+        }
+
+        // Parse and validate payload
+        const payload = await request.body.json();
+        
+        if (!payload.email) {
+            return badRequest({ body: "Email is required in the payload" });
+        }
+        
+        console.log(`📦 Received payload for: ${payload.email}`);
+
+        // Step 1: Create/find contact
+        console.log('📋 Step 1: Creating/finding contact...');
+        const contactResult = await findOrCreateContact(
+            payload.email,
+            payload.firstName || '',
+            payload.lastName || ''
+        );
+        
+        if (!contactResult || !contactResult.contact) {
+            throw new Error('Failed to create or find contact');
+        }
+        
+        console.log(`✅ Contact ready: ${contactResult.contact._id} (new: ${contactResult.wasCreated})`);
+
+        // Step 2: Create/find member
+        console.log('👤 Step 2: Creating/finding member...');
+        const memberResult = await findOrCreateMember(contactResult.contact);
+        
+        if (!memberResult || !memberResult.member) {
+            throw new Error('Failed to create or find member');
+        }
+        
+        console.log(`✅ Member ready: ${memberResult.member._id} (new: ${memberResult.wasCreated})`);
+
+        // Step 3: Ensure member has a profile in PrivateMembersData
+        console.log('📄 Step 3: Ensuring member profile...');
+        const profileResult = await ensureMemberProfile(memberResult.member);
+        
+        if (!profileResult.success) {
+            console.warn('Failed to ensure member profile:', profileResult.error);
+            // Non-critical, continue processing
+        } else {
+            console.log(`✅ Member profile ready (created: ${profileResult.created})`);
+        }
+
+        // Step 4: Build and create application
+        console.log('📝 Step 4: Creating application record...');
+        const applicationData = buildApplicationData(payload, memberResult.member._id);
+        const applicationResult = await createApplication(applicationData);
+        
+        if (!applicationResult.success) {
+            throw new Error(`Failed to create application: ${applicationResult.error}`);
+        }
+        
+        console.log(`✅ Application created: ${applicationResult.applicationId}`);
+
+        // Success response
+        return ok({
+            body: {
+                status: "success",
+                message: "Studio application processed successfully",
+                version: CODE_VERSION,
+                data: {
+                    contactId: contactResult.contact._id,
+                    contactIsNew: contactResult.wasCreated,
+                    memberId: memberResult.member._id,
+                    memberIsNew: memberResult.wasCreated,
+                    applicationId: applicationResult.applicationId
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error(`❌ StudioApplication error: ${error.message}`);
+        console.error('Full error:', error);
+        
+        return serverError({
+            body: {
+                error: "Failed to process application",
+                message: error.message,
+                version: CODE_VERSION
+            }
+        });
+    }
+}
+
+// === SIMPLE TEST ENDPOINTS ===
+
+/**
+ * Basic connectivity test endpoint
+ */
+export function get_ping(request) {
+    console.log(`⚡ Executing /ping | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
     return ok({
         body: {
             status: "alive",
@@ -22,36 +135,38 @@ export async function get_ping(request) {
     });
 }
 
-// === STEP 2: Test collection access ===
+/**
+ * Test collection access
+ */
 export async function get_testAccess(request) {
     console.log(`⚡ Executing /testAccess | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
     
     try {
         const result = await testCollectionAccess();
-        
-        console.log(`${result.success ? '✅' : '❌'} Collection access test: ${result.message || result.error}`);
+        console.log(`✅ Collection access test: ${result.message}`);
         
         return ok({
             body: {
-                status: result.success ? "success" : "failed",
+                status: "success",
                 timestamp: new Date().toISOString(),
                 version: CODE_VERSION,
                 collectionTest: result
             }
         });
     } catch (error) {
-        console.error(`❌ TestAccess error: ${error.message}`);
+        console.error('Collection access error:', error);
         return serverError({
             body: {
-                error: "Test failed",
-                message: error.message,
-                version: CODE_VERSION
+                error: "Collection access failed",
+                message: error.message
             }
         });
     }
 }
 
-// === STEP 3: Hello World Insert ===
+/**
+ * Test insert hello world
+ */
 export async function post_helloInsert(request) {
     console.log(`⚡ Executing /helloInsert | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
     
@@ -74,153 +189,65 @@ export async function post_helloInsert(request) {
                 }
             });
         } else {
-            console.log(`❌ Insert failed: ${result.error}`);
-            return serverError({
-                body: {
-                    status: "error",
-                    message: "Insert failed",
-                    error: result.error,
-                    code: result.code,
-                    version: CODE_VERSION
-                }
-            });
+            throw new Error(result.error);
         }
     } catch (error) {
-        console.error(`❌ HelloInsert error: ${error.message}`);
+        console.error('Insert error:', error);
         return serverError({
             body: {
-                error: "Insert operation failed",
-                message: error.message,
-                version: CODE_VERSION
+                error: "Insert failed",
+                message: error.message
             }
         });
     }
 }
 
-// === STEP 4: View recent test entries ===
+/**
+ * View recent test entries
+ */
 export async function get_recentTests(request) {
     console.log(`⚡ Executing /recentTests | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
     
     try {
         const result = await getRecentTestEntries();
-        
-        console.log(`${result.success ? '✅' : '❌'} Found ${result.count || 0} recent test entries`);
+        console.log(`✅ Found ${result.count} recent test entries`);
         
         return ok({
             body: {
-                status: result.success ? "success" : "failed",
+                status: "success",
                 timestamp: new Date().toISOString(),
                 version: CODE_VERSION,
                 testEntries: result
             }
         });
     } catch (error) {
-        console.error(`❌ RecentTests error: ${error.message}`);
+        console.error('Query error:', error);
         return serverError({
             body: {
                 error: "Query failed",
-                message: error.message,
-                version: CODE_VERSION
+                message: error.message
             }
         });
     }
 }
 
-// === STEP 5: Full Webhook Handler ===
-export async function post_studioApplication(request) {
-    console.log(`⚡ Executing /studioApplication | 📍 Version: ${CODE_VERSION} | 🕐 ${new Date().toISOString()}`);
-    
+// === LEGACY ENDPOINTS (kept for compatibility) ===
+
+export function get_hello(request) {
+    return ok({
+        body: "Hello from Wix Backend!",
+        headers: { 'Content-Type': 'text/plain' }
+    });
+}
+
+export async function post_hello(request) {
     try {
-        // Simple API key check - ONLY for webhook
-        if (!(await isValidApiKey(request))) {
-            return forbidden({ body: { error: "Invalid API Key" } });
-        }
-        
-        // Parse payload
-        const payload = await request.body.json();
-        console.log(`📦 Received payload for: ${payload.email}`);
-        
-        // Validate required fields
-        if (!payload.email) {
-            return badRequest({
-                body: {
-                    error: "Email is required",
-                    version: CODE_VERSION
-                }
-            });
-        }
-        
-        // === ORCHESTRATE THE FULL PROCESS ===
-        
-        // 1. Create/Find Contact
-        console.log('📋 Step 1: Creating/finding contact...');
-        const contactResult = await findOrCreateContact(
-            payload.email, 
-            payload.firstName || '', 
-            payload.lastName || ''
-        );
-        console.log(`✅ Contact ready: ${contactResult.contactId} (new: ${contactResult.isNew})`);
-        
-        // 2. Create/Find Member
-        console.log('👤 Step 2: Creating/finding member...');
-        const memberResult = await findOrCreateMember(
-            contactResult.contactId,
-            payload.email
-        );
-        console.log(`✅ Member ready: ${memberResult.memberId} (new: ${memberResult.isNew})`);
-        
-        // 3. Ensure Member Profile exists
-        if (!memberResult.hasProfile && !memberResult.memberId.startsWith('pending_')) {
-            console.log('📝 Step 3: Creating member profile...');
-            await ensureMemberProfile(memberResult.memberId, payload.email);
-        }
-        
-        // 4. Build Application Data
-        console.log('🏗️ Step 4: Building application data...');
-        const applicationData = buildApplicationData(payload, memberResult.memberId);
-        
-        // 5. Create Application
-        console.log('💾 Step 5: Creating application record...');
-        const appResult = await createApplication(applicationData);
-        
-        if (!appResult.success) {
-            throw new Error(`Failed to create application: ${appResult.error}`);
-        }
-        
-        // 6. Link Application to Member (non-critical)
-        if (!memberResult.memberId.startsWith('pending_')) {
-            console.log('🔗 Step 6: Linking application to member...');
-            await linkApplicationToMember(memberResult.memberId, appResult.applicationId);
-        }
-        
-        console.log(`✅ Full process complete for ${payload.email}`);
-        
+        const data = await request.body.json();
         return ok({
-            body: {
-                status: "success",
-                message: "Studio application processed successfully",
-                timestamp: new Date().toISOString(),
-                version: CODE_VERSION,
-                data: {
-                    contactId: contactResult.contactId,
-                    contactIsNew: contactResult.isNew,
-                    memberId: memberResult.memberId,
-                    memberIsNew: memberResult.isNew,
-                    applicationId: appResult.applicationId
-                }
-            }
+            body: `Hello, ${data.name || 'World'}!`,
+            headers: { 'Content-Type': 'text/plain' }
         });
-        
-    } catch (error) {
-        console.error(`❌ StudioApplication error: ${error.message}`);
-        console.error('Stack:', error.stack);
-        
-        return serverError({
-            body: {
-                error: "Failed to process application",
-                message: error.message,
-                version: CODE_VERSION
-            }
-        });
+    } catch(e) {
+        return badRequest({ body: "Invalid JSON in request body" });
     }
 }
