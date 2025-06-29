@@ -1,7 +1,7 @@
 // src/backend/admin-tools.jsw
 // Simplified version with only essential fixes
 
-import { currentMember, queryMembers, getMember, sendSetPasswordEmail } from 'wix-members-backend';
+import { currentMember, members, authentication } from 'wix-members-backend';
 import wixData from 'wix-data';
 import { elevate } from 'wix-auth';
 import { ok, serverError, forbidden, badRequest } from 'wix-http-functions';
@@ -51,7 +51,7 @@ export async function findOrphanedApplications() {
  * FIXED: No more N+1 queries
  */
 export async function findMembersWithoutProfiles() {
-    const authMembersResult = await elevate(queryMembers)({})
+    const authMembersResult = await elevate(members.queryMembers)()
         .limit(1000)
         .find();
     
@@ -99,7 +99,7 @@ export async function findMembersWithoutProfiles() {
 export async function syncMemberProfile(memberId) {
     try {
         // Get auth member data
-        const authMember = await elevate(getMember)(memberId);
+        const authMember = await elevate(members.getMember)(memberId);
         if (!authMember) {
             throw new Error(`Member ${memberId} not found in auth system`);
         }
@@ -150,9 +150,9 @@ export async function linkOrphanedApplication(applicationId) {
         }
         
         // Find member by email
-        const authQuery = await elevate(queryMembers)({
-            loginEmail: application.email
-        });
+        const authQuery = await elevate(members.queryMembers)()
+            .eq('loginEmail', application.email)
+            .find();
         
         if (authQuery.items.length === 0) {
             throw new Error(`No member found with email ${application.email}`);
@@ -179,7 +179,7 @@ export async function linkOrphanedApplication(applicationId) {
  */
 export async function resendPasswordEmail(email) {
     try {
-        await elevate(sendSetPasswordEmail)(email);
+        await elevate(authentication.sendSetPasswordEmail)(email);
         console.log(`Password email sent to ${email}`);
         return { success: true, email };
     } catch (error) {
@@ -238,7 +238,7 @@ export async function generateSystemReport() {
             .ge('submissionDate', new Date(now - 30 * day))
             .count(),
         // Member queries
-        elevate(queryMembers)({}).count(),
+        elevate(members.queryMembers)().count(),
         elevate(wixData.query)(MEMBERS_COLLECTION_ID).count()
     ]);
     

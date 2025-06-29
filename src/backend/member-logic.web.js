@@ -1,7 +1,7 @@
 // src/backend/member-logic.web.js
 // Site Member management logic with race condition prevention
 
-import { register, sendSetPasswordEmail, queryMembers } from 'wix-members-backend';
+import { authentication, currentMember, members } from 'wix-members-backend';
 import wixData from 'wix-data';
 
 const MEMBERS_COLLECTION = 'Members/PrivateMembersData';
@@ -43,12 +43,12 @@ export async function findOrCreateMember(contactInfo) {
     try {
         // BEST PRACTICE: Try to create first (avoids race conditions)
         console.log(`Attempting to register new member for: ${email}`);
-        const registrationResult = await register(email, generateTempPassword(), registrationOptions);
+        const registrationResult = await authentication.register(email, generateTempPassword(), registrationOptions);
         const newMember = registrationResult.member;
         console.log(`Successfully created new member with ID: ${newMember._id}`);
 
         // Send password setup email (non-blocking)
-        sendSetPasswordEmail(email).catch(err => {
+        authentication.sendSetPasswordEmail(email).catch(err => {
             console.error(`Non-critical error: Failed to send password setup email to ${email}:`, err);
         });
 
@@ -59,7 +59,7 @@ export async function findOrCreateMember(contactInfo) {
         if (error.message && error.message.toLowerCase().includes("already")) {
             console.log(`Member with email ${email} already exists. Querying for existing member...`);
             
-            const existingMembers = await queryMembers()
+            const existingMembers = await members.queryMembers()
                 .eq("loginEmail", email)
                 .find({ suppressAuth: true });
 
