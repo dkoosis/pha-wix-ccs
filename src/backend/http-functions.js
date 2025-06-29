@@ -16,7 +16,7 @@ import {
     buildApplicationData
 } from 'backend/data-access';
 
-const CODE_VERSION = "v.8f2a53e"; // Version tracking
+const CODE_VERSION = "v.4972b28"; // Version tracking
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
 
 /**
@@ -228,26 +228,5 @@ export async function get_recentTests(request) {
                 message: error.message
             }
         });
-    }
-}
-
-// === LEGACY ENDPOINTS (kept for compatibility) ===
-
-export function get_hello(request) {
-    return ok({
-        body: "Hello from Wix Backend!",
-        headers: { 'Content-Type': 'text/plain' }
-    });
-}
-
-export async function post_hello(request) {
-    try {
-        const data = await request.body.json();
-        return ok({
-            body: `Hello, ${data.name || 'World'}!`,
-            headers: { 'Content-Type': 'text/plain' }
-        });
-    } catch(e) {
-        return badRequest({ body: "Invalid JSON in request body" });
     }
 }
