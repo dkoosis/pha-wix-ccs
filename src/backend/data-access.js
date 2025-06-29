@@ -161,35 +161,20 @@ export function buildApplicationData(payload, memberId) {
 }
 
 /**
- * Link application to member profile
+ * Links a studio application to a site member's private data record.
+ * @param {string} applicationId The ID of the application to link.
+ * @param {string} memberId The ID of the member.
+ * @returns {Promise<{success: boolean, error?: string}>}
  */
-export async function linkApplicationToMember(memberId, applicationId) {
-    if (!memberId || !applicationId || memberId.startsWith('pending_')) {
-        console.log('[APP] Skipping link: invalid member or application ID');
-        return { success: false, reason: 'Invalid IDs' };
-    }
-
+export async function linkApplicationToMember(applicationId, memberId) {
     try {
-        // Add reference to member's studioApplications field
-        // TODO: Verify insertReference is correct method vs updating array field
-        // TODO: Check if reference already exists before inserting?
-        // TODO: Confirm field name 'studioApplications' matches the Members collection schema
-        await wixData.insertReference(
-            'Members/PrivateMembersData',
-            'studioApplications',
-            memberId,
-            applicationId,
-            { suppressAuth: true }
-        );
-        
-        console.log(`[APP] Linked application ${applicationId} to member ${memberId}`);
+        // The reference field 'siteMember' in 'StudioMembershipApplications'
+        // now correctly points to the 'Members/PrivateMembersData' collection.
+        await wixData.insertReference("StudioMembershipApplications", "siteMember", applicationId, memberId);
+        console.log(`Successfully linked application ${applicationId} to member ${memberId}`);
         return { success: true };
-        
     } catch (error) {
-        console.error('[APP] Failed to link application to member:', error);
-        return { 
-            success: false, 
-            error: error.message 
-        };
+        console.error("Error linking application to member:", error);
+        return { success: false, error: error.message };
     }
 }

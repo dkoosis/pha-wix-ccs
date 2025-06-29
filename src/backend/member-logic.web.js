@@ -88,41 +88,39 @@ async function checkMemberProfile(memberId) {
 }
 
 /**
- * Create or update member profile
+ * Ensures a member has a profile in the PrivateMembersData collection.
+ * Creates one if it does not exist.
+ * @param {object} memberInfo The member object from wix-members-backend.
+ * @returns {Promise<{success: boolean, memberProfile?: object, created: boolean, error?: string}>}
  */
-export async function ensureMemberProfile(memberId, email) {
-    if (!memberId || memberId.startsWith('pending_')) {
-        console.log(`[MEMBER] Skipping profile creation for pending member: ${memberId}`);
-        return null;
-    }
+export async function ensureMemberProfile(memberInfo) {
+    const options = {
+        suppressAuth: true
+    };
 
     try {
-        // Check if profile exists
-        const existingProfile = await wixData.get(MEMBERS_COLLECTION, memberId, { suppressAuth: true })
-            .catch(() => null);
+        const memberId = memberInfo._id;
+
+        // 1. Check if a record already exists in PrivateMembersData.
+        const existingProfile = await wixData.get("Members/PrivateMembersData", memberId, options);
 
         if (existingProfile) {
-            console.log(`[MEMBER] Profile already exists for member: ${memberId}`);
-            return existingProfile;
+            console.log(`PrivateMembersData record for member ${memberId} already exists.`);
+            return { success: true, memberProfile: existingProfile, created: false };
         }
 
-        // Create new profile
-        // TODO: Verify we can set _id when inserting into Members collection
-        // Alternative might be to let Wix generate ID and link via different field
-        const profile = {
+        // 2. If not, create one. This is necessary because unlike FullData,
+        // the PrivateMembersData record is not created automatically.
+        const profileToInsert = {
             _id: memberId,
-            loginEmail: email,
-            studioApplications: [],
-            memberStatus: 'active',
-            registrationDate: new Date()
         };
 
-        const newProfile = await wixData.insert(MEMBERS_COLLECTION, profile, { suppressAuth: true });
-        console.log(`[MEMBER] Created profile for member: ${memberId}`);
-        return newProfile;
+        const newProfile = await wixData.insert("Members/PrivateMembersData", profileToInsert, options);
+        console.log(`Created PrivateMembersData record for member ${memberId}.`);
+        return { success: true, memberProfile: newProfile, created: true };
 
     } catch (error) {
-        console.error(`[MEMBER] Error creating profile for ${memberId}:`, error);
-        throw error;
+        console.error("Error ensuring member profile in PrivateMembersData:", error);
+        return { success: false, created: false, error: error.message };
     }
 }
