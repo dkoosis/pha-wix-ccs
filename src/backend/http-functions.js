@@ -16,7 +16,7 @@ import {
     buildApplicationData
 } from 'backend/data-access';
 
-const CODE_VERSION = "v.4972b28"; // Version tracking
+const CODE_VERSION = "v.a07cba6"; // Version tracking
 const FILLOUT_API_KEY_NAME = "FILLOUT_X_API_KEY";
 
 /**

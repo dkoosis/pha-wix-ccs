@@ -73,14 +73,14 @@ export async function findOrCreateContact(email, firstName, lastName) {
             // addresses: [{ city: "New York", tag: "HOME" }]
         };
 
-        // createContact returns an object with a 'contact' property containing the new contact
-        const createResult = await contacts.createContact(contactInfo, options);
+        // createContact returns the new contact object directly
+        const newContact = await contacts.createContact(contactInfo, options);
         
-        console.log(`Created new contact with ID: ${createResult.contact._id}`);
+        console.log(`Created new contact with ID: ${newContact._id}`);
         
         // Return structure matches the 'found' case for consistency
         return {
-            contact: createResult.contact,
+            contact: newContact,
             wasCreated: true
         };
         
