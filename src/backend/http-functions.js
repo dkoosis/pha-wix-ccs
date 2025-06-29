@@ -7,7 +7,7 @@ import { testCollectionAccess, insertHelloWorld, getRecentTestEntries, createApp
 import { findOrCreateContact } from 'backend/contact-logic.web.js';
 import { findOrCreateMember, ensureMemberProfile } from 'backend/member-logic.web.js';
 
-const CODE_VERSION = "v.4c97c5d";
+const CODE_VERSION = "v.25ba63f";
 
 // === STEP 1: Basic connectivity ===
 export async function get_ping(request) {

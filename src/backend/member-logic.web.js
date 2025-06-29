@@ -23,79 +23,53 @@ function generateTempPassword() {
 /**
  * Find or create a site member
  */
-export async function findOrCreateMember(contactId, email) {
-    if (!contactId || !email) {
-        throw new Error("Both contactId and email are required");
+// src/backend/member-logic.web.js
+
+import { members } from 'wix-members-backend';
+
+/**
+ * Creates a Wix Site Member from contact info, handling cases where the member already exists.
+ * This is the recommended "try-to-create, then-catch-duplicate" pattern.
+ *
+ * @param {object} contactInfo - A Wix CRM contact object.
+ * @returns {Promise<{member: object, wasCreated: boolean}>}
+ */
+export async function findOrCreateMember(contactInfo) {
+    if (!contactInfo || !contactInfo.info.emails[0].email) {
+        throw new Error("Contact info with a valid email is required to create a member.");
     }
 
-    console.log(`[MEMBER] Looking for member with email: ${email}`);
+    const memberInfo = {
+        contactInfo: {
+            firstName: contactInfo.info.name.first,
+            lastName: contactInfo.info.name.last,
+            emails: [{ email: contactInfo.info.emails[0].email, tag: "MAIN" }]
+        }
+    };
 
     try {
-        // First, check if member exists by email using members API
-        // TODO: Verify 'loginEmail' is the correct field name for queryMembers API
-        // Original code might have queried the collection directly instead
-        const memberQuery = await elevate(queryMembers)()
-            .eq('loginEmail', email)
-            .find();
-
-        if (memberQuery.items.length > 0) {
-            const existingMember = memberQuery.items[0];
-            console.log(`[MEMBER] Found existing member: ${existingMember._id}`);
-            
-            // Check if member has a profile record
-            const profileExists = await checkMemberProfile(existingMember._id);
-            
-            return {
-                memberId: existingMember._id,
-                isNew: false,
-                hasProfile: profileExists,
-                member: existingMember
-            };
-        }
-
-        // Register new member
-        console.log(`[MEMBER] No existing member found. Registering new member...`);
-        const tempPassword = generateTempPassword();
-        
-        const registrationResult = await register(email, tempPassword, {
-            contactInfo: { 
-                contactId: contactId 
-            }
-        });
-        
-        const newMember = registrationResult.member;
-        console.log(`[MEMBER] Created new member with ID: ${newMember._id}`);
-
-        // Send password setup email (non-blocking)
-        sendSetPasswordEmail(email)
-            .then(() => console.log(`[MEMBER] Password setup email sent to ${email}`))
-            .catch(err => console.error(`[MEMBER] Failed to send password email to ${email}:`, err));
-
-        return {
-            memberId: newMember._id,
-            isNew: true,
-            hasProfile: false, // New members don't have profiles yet
-            member: newMember
-        };
+        // Velo Best Practice: Directly attempt to create the member.
+        // This is more robust than checking for existence first.
+        const member = await members.createMember(memberInfo);
+        return { member, wasCreated: true };
 
     } catch (error) {
-        console.error("[MEMBER] Error in findOrCreateMember:", error);
-        
-        // Handle the case where member exists but query failed
-        // TODO: String matching on error messages is brittle - need better approach
-        // Wix might change error message text in future
-        if (error.message && error.message.includes("already a site member")) {
-            console.error(`[MEMBER] Critical: Member exists but couldn't be queried. Email: ${email}`);
-            // Return a pending ID so we can still create the application
-            return {
-                memberId: `pending_${Date.now()}`,
-                isNew: false,
-                hasProfile: false,
-                error: "Member exists but query failed"
-            };
+        // Velo Best Practice: Catch specific errors. If the member already exists,
+        // Wix will throw an error. We catch it and retrieve the existing member.
+        // Note: You should confirm the exact error code from Wix documentation or testing.
+        // 'wix-members-backend_member-already-exists' is a likely candidate.
+        if (error.message.includes("member already exists")) { // A common error signature
+            
+            // If the member exists, fetch their data using their email.
+            const existingMember = await members.getMemberByEmail(memberInfo.contactInfo.emails[0].email);
+            return { member: existingMember, wasCreated: false };
+
+        } else {
+            // For any other unexpected error, log it and re-throw it so the
+            // calling function knows something went wrong.
+            console.error("An unexpected error occurred while creating a member:", error);
+            throw error;
         }
-        
-        throw new Error(`Failed to find or create member: ${error.message}`);
     }
 }
 

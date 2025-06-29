@@ -2,62 +2,49 @@
 // CRM Contact management logic
 
 import { contacts } from 'wix-crm-backend';
-import { elevate } from 'wix-auth';
+//import { suppressAuth } from 'wix-auth';
 
 /**
- * Find or create a CRM contact by email
+ * Finds a contact by email or creates a new one.
+ * @param {string} email
+ * @param {string} firstName
+ * @param {string} lastName
+ * @returns {Promise<{contact: object, wasCreated: boolean}>}
  */
-export async function findOrCreateContact(email, firstName = '', lastName = '') {
+export async function findOrCreateContact(email, firstName, lastName) {
     if (!email) {
-        throw new Error("Email is required to find or create a contact");
+        throw new Error("Email is required to find or create a contact.");
     }
 
-    console.log(`[CRM] Looking for contact with email: ${email}`);
+    // Velo Best Practice: Use { suppressAuth: true } for all backend data operations
+    // to ensure they run with admin privileges. This is the correct replacement
+    // for the 'elevate()' pattern.
+    const options = { suppressAuth: true };
 
-    try {
-        // Search for existing contact by email
-        // TODO: Confirm "info.emails.email" is still the correct query path
-        // This worked in the original code but API might have changed
-        const queryResult = await elevate(contacts.queryContacts)()
-            .eq("info.emails.email", email)
-            .limit(1)
-            .find();
+    // First, try to find an existing contact with the provided email.
+    const existingContacts = await contacts.queryContacts()
+        .eq("info.emails.email", email)
+        .limit(1)
+        .find(options); // Apply the options here
 
-        if (queryResult.items.length > 0) {
-            const existingContact = queryResult.items[0];
-            console.log(`[CRM] Found existing contact: ${existingContact._id}`);
-            return {
-                contactId: existingContact._id,
-                isNew: false,
-                contact: existingContact
-            };
-        }
-
-        // Create new contact
-        console.log(`[CRM] No existing contact found. Creating new contact...`);
-        const contactInfo = {
-            name: { 
-                first: firstName, 
-                last: lastName 
-            },
-            emails: [{ 
-                email: email, 
-                tag: "MAIN", 
-                primary: true 
-            }]
-        };
-
-        const { contact } = await elevate(contacts.createContact)(contactInfo);
-        
-        console.log(`[CRM] Created new contact with ID: ${contact._id}`);
+    if (existingContacts.items.length > 0) {
+        // If a contact is found, return it.
         return {
-            contactId: contact._id,
-            isNew: true,
-            contact: contact
+            contact: existingContacts.items[0],
+            wasCreated: false
+        };
+    } else {
+        // If no contact is found, create a new one.
+        const contactInfo = {
+            name: { first: firstName, last: lastName },
+            emails: [{ email: email, tag: "MAIN" }]
         };
 
-    } catch (error) {
-        console.error("[CRM] Error in findOrCreateContact:", error);
-        throw new Error(`Failed to find or create contact: ${error.message}`);
+        const newContact = await contacts.createContact(contactInfo, options); // Apply the options here as well
+
+        return {
+            contact: newContact,
+            wasCreated: true
+        };
     }
 }
