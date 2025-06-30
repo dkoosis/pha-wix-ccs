@@ -1,25 +1,29 @@
 // src/backend/admin-tools.js
-// Admin tools module (separated from HTTP functions)
+// Admin tools with wixMemberId field name and CCS_Admin role
 
 import { currentMember, members, authentication } from 'wix-members-backend';
 import wixData from 'wix-data';
 import { elevate } from 'wix-auth';
 
 const MEMBERS_COLLECTION_ID = "Members/PrivateMembersData";
-const APPLICATIONS_COLLECTION_ID = "StudioMembershipApplications"; // Updated from "Import1"
+const APPLICATIONS_COLLECTION_ID = "StudioMembershipApplications";
 
-/**
- * Helper function to check if current user is admin
- */
+const ADMIN_ROLE_IDS = {
+    ADMIN: 'Admin', // Wix system admin (by name)
+    CCS_ADMIN: 'c4b5c14b-0bf9-4095-ba9a-6e30b1ae5098' // Studio staff admin
+};
+
 export async function requireAdmin() {
-    // Fix: Use getMember() method from currentMember object
     const member = await currentMember.getMember();
     if (!member) {
         throw new Error('Unauthorized: Not logged in');
     }
     
     const roles = await currentMember.getRoles();
-    const isAdmin = roles.some(role => role.name === 'Admin');
+    const isAdmin = roles.some(role => 
+        role.name === ADMIN_ROLE_IDS.ADMIN || 
+        role._id === ADMIN_ROLE_IDS.CCS_ADMIN
+    );
     
     if (!isAdmin) {
         throw new Error('Unauthorized: Admin access required');
@@ -28,13 +32,9 @@ export async function requireAdmin() {
     return member;
 }
 
-/**
- * Find applications without linked members
- */
 export async function findOrphanedApplications() {
-    // TODO: Update to use 'wixMemberId' field when schema is updated
     const applications = await wixData.query(APPLICATIONS_COLLECTION_ID)
-        .isEmpty('applicantProfile') // TODO: Change to 'wixMemberId'
+        .isEmpty('wixMemberId')
         .limit(1000)
         .find();
         
@@ -47,12 +47,7 @@ export async function findOrphanedApplications() {
     return applications.items;
 }
 
-/**
- * Find members without profile records in MemberProfiles collection
- * Updated to check the custom MemberProfiles collection instead of system collection
- */
 export async function findMembersWithoutProfiles() {
-    // Fix: Use listMembers for v2 API
     const authMembersResult = await elevate(members.listMembers)({
         paging: { limit: 1000 }
     });
@@ -65,7 +60,6 @@ export async function findMembersWithoutProfiles() {
         authMembersResult.members.map(m => [m._id, m])
     );
     
-    // Get all profile IDs from the custom MemberProfiles collection
     const memberIds = Array.from(authMemberMap.keys());
     const profileQuery = await wixData.query('MemberProfiles')
         .hasSome("_id", memberIds)
@@ -74,14 +68,12 @@ export async function findMembersWithoutProfiles() {
     
     const profileIds = new Set(profileQuery.items.map(p => p._id));
     
-    // Find members without profiles
     const orphaned = [];
     for (const [memberId, authMember] of authMemberMap.entries()) {
         if (!profileIds.has(memberId)) {
             orphaned.push({
                 memberId: authMember._id,
                 email: authMember.loginEmail,
-                // Fix: Use _createdDate instead of registrationDate
                 registrationDate: authMember._createdDate
             });
         }
@@ -96,19 +88,13 @@ export async function findMembersWithoutProfiles() {
     return orphaned;
 }
 
-/**
- * Create member profile in MemberProfiles collection
- * Updated to work with custom collection instead of system collection
- */
 export async function createMemberProfile(memberId) {
     try {
-        // Get auth member data
         const authMember = await elevate(members.getMember)(memberId, { fieldsets: ['FULL'] });
         if (!authMember) {
             throw new Error(`Member ${memberId} not found in auth system`);
         }
         
-        // Check if profile exists in MemberProfiles collection
         const existingProfile = await wixData.get('MemberProfiles', memberId)
             .catch(() => null);
             
@@ -117,19 +103,15 @@ export async function createMemberProfile(memberId) {
             return existingProfile;
         }
         
-        // Create profile in custom MemberProfiles collection
         const profile = {
-            _id: memberId, // Use member ID as profile ID
+            _id: memberId,
             loginEmail: authMember.loginEmail,
-            // Fix: Use _createdDate instead of registrationDate
             registrationDate: authMember._createdDate,
-            // Phase 3 onboarding fields
             hasSignedWaiver: false,
             hasSignedRules: false,
             hasScheduledOrientation: false,
             hasPurchasedPlan: false,
-            // Phase 4 promotion field
-            inviteeStatus: 'active', // or whatever default status you want
+            inviteeStatus: 'active',
             createdDate: new Date()
         };
         
@@ -144,25 +126,18 @@ export async function createMemberProfile(memberId) {
     }
 }
 
-/**
- * Link an orphaned application to a member by email
- * This might be needed for applications created before the approval workflow was implemented
- */
 export async function linkOrphanedApplication(applicationId) {
     try {
-        // Get the application
         const application = await wixData.get(APPLICATIONS_COLLECTION_ID, applicationId);
         if (!application) {
             throw new Error('Application not found');
         }
         
-        // TODO: Update to use 'wixMemberId' field when schema is updated
-        if (application.applicantProfile) { // TODO: Change to 'wixMemberId'
+        if (application.wixMemberId) {
             console.log('Application already has a member');
             return application;
         }
         
-        // Find member by email - Fix: Use queryMembers with v2 API
         const authQuery = await elevate(members.queryMembers)()
             .eq('loginEmail', application.email)
             .find();
@@ -173,9 +148,7 @@ export async function linkOrphanedApplication(applicationId) {
         
         const member = authQuery.items[0];
         
-        // Update application with member ID
-        // TODO: Update to use 'wixMemberId' field when schema is updated
-        application.applicantProfile = member._id; // TODO: Change to 'wixMemberId'
+        application.wixMemberId = member._id;
         const updated = await wixData.update(APPLICATIONS_COLLECTION_ID, application);
         
         console.log(`Linked application ${applicationId} to member ${member._id}`);
@@ -187,9 +160,6 @@ export async function linkOrphanedApplication(applicationId) {
     }
 }
 
-/**
- * Resend password setup email to a member
- */
 export async function resendPasswordEmail(email) {
     try {
         await elevate(authentication.sendSetPasswordEmail)(email);
@@ -201,9 +171,6 @@ export async function resendPasswordEmail(email) {
     }
 }
 
-/**
- * Generate admin report of application/member status
- */
 export async function generateSystemReport() {
     const report = {
         timestamp: new Date().toISOString(),
@@ -228,12 +195,10 @@ export async function generateSystemReport() {
     const now = new Date();
     const day = 24 * 60 * 60 * 1000;
     
-    // Fix: Create proper Date objects for comparisons
     const dayAgo = new Date(now.getTime() - day);
     const weekAgo = new Date(now.getTime() - (7 * day));
     const monthAgo = new Date(now.getTime() - (30 * day));
     
-    // Run all queries in parallel
     const [
         allApps,
         orphanedApps,
@@ -245,10 +210,8 @@ export async function generateSystemReport() {
         authMembersResult,
         profilesCount
     ] = await Promise.all([
-        // Application queries
         wixData.query(APPLICATIONS_COLLECTION_ID).count(),
-        // TODO: Update to use 'wixMemberId' field when schema is updated
-        wixData.query(APPLICATIONS_COLLECTION_ID).isEmpty('applicantProfile').count(), // TODO: Change to 'wixMemberId'
+        wixData.query(APPLICATIONS_COLLECTION_ID).isEmpty('wixMemberId').count(),
         wixData.query(APPLICATIONS_COLLECTION_ID).eq('status', 'Submitted').count(),
         wixData.query(APPLICATIONS_COLLECTION_ID).eq('status', 'Approved').count(),
         wixData.query(APPLICATIONS_COLLECTION_ID)
@@ -260,12 +223,10 @@ export async function generateSystemReport() {
         wixData.query(APPLICATIONS_COLLECTION_ID)
             .ge('submissionDate', monthAgo)
             .count(),
-        // Member queries - Fix: Use listMembers for count
         elevate(members.listMembers)({ paging: { limit: 1 } }),
-        wixData.query('MemberProfiles').count() // Updated to use MemberProfiles
+        wixData.query('MemberProfiles').count()
     ]);
     
-    // Populate report
     report.applications.total = allApps;
     report.applications.orphaned = orphanedApps;
     report.applications.withMembers = allApps - orphanedApps;
@@ -274,7 +235,6 @@ export async function generateSystemReport() {
         approved: approvedApps
     };
     
-    // Fix: Get total count from metadata
     report.members.total = authMembersResult.metadata?.total || 0;
     report.members.withProfiles = profilesCount;
     report.members.withoutProfiles = Math.max(0, report.members.total - profilesCount);

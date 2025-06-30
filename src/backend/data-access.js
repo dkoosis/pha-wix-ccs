@@ -1,13 +1,10 @@
 // src/backend/data-access.js
-// Simple data access layer for StudioMembershipApplications
+// Data access layer for StudioMembershipApplications
 
 import wixData from 'wix-data';
 
 const APPLICATIONS_COLLECTION = 'StudioMembershipApplications';
 
-/**
- * Test if we can access the collection
- */
 export async function testCollectionAccess(collectionName = APPLICATIONS_COLLECTION) {
     try {
         const results = await wixData.query(collectionName)
@@ -29,13 +26,9 @@ export async function testCollectionAccess(collectionName = APPLICATIONS_COLLECT
     }
 }
 
-/**
- * Simple hello world insert into StudioMembershipApplications
- */
 export async function insertHelloWorld() {
     const timestamp = new Date();
     const testData = {
-        // Basic required fields based on your CSV structure
         firstName: 'Hello',
         lastName: 'World',
         email: `hello_${timestamp.getTime()}@example.com`,
@@ -43,8 +36,8 @@ export async function insertHelloWorld() {
         website: 'https://hello-world.example.com',
         hasIndependentExperience: true,
         studioTechniques: 'Test Insert',
-        
-        // Add a title for easy identification
+        status: 'Test',
+        submissionDate: timestamp,
         title: `Hello World Test - ${timestamp.toISOString()}`
     };
     
@@ -69,9 +62,6 @@ export async function insertHelloWorld() {
     }
 }
 
-/**
- * Get recent test entries
- */
 export async function getRecentTestEntries(limit = 5) {
     try {
         const results = await wixData.query(APPLICATIONS_COLLECTION)
@@ -94,10 +84,6 @@ export async function getRecentTestEntries(limit = 5) {
     }
 }
 
-/**
- * Create a full application record
- * NOTE: No longer links to member - that happens during approval
- */
 export async function createApplication(applicationData) {
     if (!applicationData || !applicationData.email) {
         throw new Error("Application data with email is required");
@@ -124,49 +110,86 @@ export async function createApplication(applicationData) {
     }
 }
 
-/**
- * Build application data from form payload
- * NOTE: No longer includes member ID - members are created during approval, not submission
- */
-export function buildApplicationData(payload) {
-    const applicationData = {
-        // TODO: Change 'applicantProfile' to 'wixMemberId' when schema is updated
-        // Member linking now happens during approval in the data hook
+export async function queryApplications(filters = {}) {
+    try {
+        let query = wixData.query(APPLICATIONS_COLLECTION);
         
-        // Basic info
-        firstName: payload.firstName || '',
-        lastName: payload.lastName || '',
-        email: payload.email || '',
-        phoneNumber: payload.phone || payload.phoneNumber || '',
-        website: payload.website || '',
-        
-        // Experience fields
-        hasIndependentExperience: payload.hasExperience || false,
-        studioTechniques: Array.isArray(payload.hasTechniques) 
-            ? payload.hasTechniques.join(', ') 
-            : (payload.hasTechniques || payload.studioTechniques || ''),
-        
-        // TODO: Add all additional fields from the actual membership application form:
-        // - experienceDescription
-        // - practiceDescription
-        // - safetyDescription
-        // - knowsSafety
-        // - etc.
-        
-        // Title for easy identification
-        title: `${payload.firstName} ${payload.lastName} - ${new Date().toISOString().split('T')[0]}`
-    };
-
-    // Clean undefined/null fields
-    Object.keys(applicationData).forEach(key => {
-        if (applicationData[key] === undefined || applicationData[key] === null) {
-            delete applicationData[key];
+        if (filters.status) {
+            query = query.eq('status', filters.status);
         }
-    });
-    
-    return applicationData;
+        if (filters.email) {
+            query = query.eq('email', filters.email);
+        }
+        if (filters.hasMembers !== undefined) {
+            if (filters.hasMembers) {
+                query = query.isNotEmpty('wixMemberId');
+            } else {
+                query = query.isEmpty('wixMemberId');
+            }
+        }
+        if (filters.dateFrom) {
+            query = query.ge('submissionDate', filters.dateFrom);
+        }
+        if (filters.dateTo) {
+            query = query.le('submissionDate', filters.dateTo);
+        }
+        
+        if (filters.sortBy) {
+            query = filters.sortDescending 
+                ? query.descending(filters.sortBy) 
+                : query.ascending(filters.sortBy);
+        } else {
+            query = query.descending('submissionDate');
+        }
+        
+        const limit = filters.limit || 50;
+        query = query.limit(limit);
+        
+        if (filters.skip) {
+            query = query.skip(filters.skip);
+        }
+        
+        const results = await query.find({ suppressAuth: true });
+        
+        return {
+            success: true,
+            items: results.items,
+            totalCount: results.totalCount,
+            hasNext: results.hasNext()
+        };
+        
+    } catch (error) {
+        console.error('Query applications failed:', error);
+        return {
+            success: false,
+            error: error.message,
+            items: [],
+            totalCount: 0
+        };
+    }
 }
 
-// REMOVED: linkApplicationToMember function
-// Application-to-member linking now happens in the data hook during approval
-// using wixData.update() with the member ID
+export async function getApplication(applicationId) {
+    try {
+        const application = await wixData.get(APPLICATIONS_COLLECTION, applicationId, { suppressAuth: true });
+        
+        if (!application) {
+            return {
+                success: false,
+                error: 'Application not found'
+            };
+        }
+        
+        return {
+            success: true,
+            application
+        };
+        
+    } catch (error) {
+        console.error(`Failed to get application ${applicationId}:`, error);
+        return {
+            success: false,
+            error: error.message
+        };
+    }
+}
