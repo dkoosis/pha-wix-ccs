@@ -1,7 +1,7 @@
 // src/backend/admin-tools.js
 // Admin tools module (separated from HTTP functions)
 
-import { currentMember, members, authentication } from 'wix-members-backend';
+import { currentMember, members, authentication } from 'wix-members-backend.v2';
 import wixData from 'wix-data';
 import { elevate } from 'wix-auth';
 
@@ -12,7 +12,7 @@ const APPLICATIONS_COLLECTION_ID = "StudioMembershipApplications"; // Updated fr
  * Helper function to check if current user is admin
  */
 export async function requireAdmin() {
-    // Fix: Use getMember() instead of calling currentMember as function
+    // Fix: Use getMember() method from currentMember object
     const member = await currentMember.getMember();
     if (!member) {
         throw new Error('Unauthorized: Not logged in');
@@ -52,7 +52,7 @@ export async function findOrphanedApplications() {
  * Updated to check the custom MemberProfiles collection instead of system collection
  */
 export async function findMembersWithoutProfiles() {
-    // Fix: Use listMembers instead of queryMembers for v2 API
+    // Fix: Use listMembers for v2 API
     const authMembersResult = await elevate(members.listMembers)({
         paging: { limit: 1000 }
     });
@@ -163,16 +163,15 @@ export async function linkOrphanedApplication(applicationId) {
         }
         
         // Find member by email - Fix: Use queryMembers with v2 API
-        const authQuery = await elevate(members.queryMembers)({
-            filter: { loginEmail: { $eq: application.email } },
-            paging: { limit: 1 }
-        });
+        const authQuery = await elevate(members.queryMembers)()
+            .eq('loginEmail', application.email)
+            .find();
         
-        if (!authQuery.members || authQuery.members.length === 0) {
+        if (!authQuery.items || authQuery.items.length === 0) {
             throw new Error(`No member found with email ${application.email}`);
         }
         
-        const member = authQuery.members[0];
+        const member = authQuery.items[0];
         
         // Update application with member ID
         // TODO: Update to use 'wixMemberId' field when schema is updated
@@ -275,8 +274,8 @@ export async function generateSystemReport() {
         approved: approvedApps
     };
     
-    // Fix: Get total count from pagingMetadata
-    report.members.total = authMembersResult.pagingMetadata?.total || 0;
+    // Fix: Get total count from metadata
+    report.members.total = authMembersResult.metadata?.total || 0;
     report.members.withProfiles = profilesCount;
     report.members.withoutProfiles = Math.max(0, report.members.total - profilesCount);
     

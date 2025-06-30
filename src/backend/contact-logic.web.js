@@ -1,7 +1,8 @@
 // src/backend/contact-logic.web.js
 // CRM Contact management logic
 
-import { contacts } from 'wix-crm-backend';
+// Fix: Use the v2 CRM API
+import { contacts } from 'wix-crm.v2';
 
 /**
  * Finds a contact by email or creates a new one using the "query-then-create" pattern.
@@ -24,21 +25,15 @@ export async function findOrCreateContact(email, firstName, lastName) {
         throw new Error("Email is required to find or create a contact.");
     }
 
-    // IMPORTANT: suppressAuth allows backend code to access all contacts,
-    // not just those created by the current user. This is necessary for
-    // proper deduplication across all contacts in the system.
-    const options = { suppressAuth: true };
-
     try {
         // Step 1: Query for existing contact by email
         console.log(`Querying for existing contact with email: ${email}`);
         
-        // GOTCHA: The email field path is "info.emails.email" not "email" or "info.email"
-        // This searches through the emails array for any email that matches
+        // Use v2 API query syntax - primaryInfo.email is the correct field
         const existingContacts = await contacts.queryContacts()
-            .eq("info.emails.email", email)
-            .limit(1) // Performance optimization - we only need to know if one exists
-            .find(options);
+            .eq("primaryInfo.email", email)
+            .limit(1)
+            .find();
 
         // Step 2: Return existing contact if found
         if (existingContacts.items.length > 0) {
@@ -55,26 +50,28 @@ export async function findOrCreateContact(email, firstName, lastName) {
         // Step 3: Create new contact if none exists
         console.log(`No existing contact found. Creating new contact for: ${email}`);
         
-        // Contact structure expected by Wix CRM:
-        // - name: object with 'first' and 'last' properties
-        // - emails: array of email objects (even for a single email)
+        // Contact structure for v2 API based on documentation
+        // Note: Based on the examples, new emails default to "UNTAGGED"
         const contactInfo = {
             name: { 
-                first: firstName || '', // Default to empty string if not provided
+                first: firstName || '', 
                 last: lastName || '' 
             },
-            emails: [{ 
-                email: email,
-                tag: "MAIN",      // Standard Wix tag for primary email
-                primary: true     // Mark as the primary email address
-            }]
+            emails: {
+                items: [{
+                    email: email,
+                    primary: true     // Mark as the primary email address
+                    // tag will be automatically set by the API (defaults to "UNTAGGED")
+                }]
+            }
             // You can add more fields here like:
-            // phones: [{ phone: "+1234567890", tag: "MOBILE", primary: true }]
-            // addresses: [{ city: "New York", tag: "HOME" }]
+            // phones: { items: [{ phone: "+1234567890", primary: true }] }
+            // addresses: { items: [{ address: { city: "New York" } }] }
         };
 
-        // createContact returns the new contact object directly
-        const newContact = await contacts.createContact(contactInfo, options);
+        // createContact returns the new contact directly
+        const createResponse = await contacts.createContact(contactInfo);
+        const newContact = createResponse.contact;
         
         console.log(`Created new contact with ID: ${newContact._id}`);
         
@@ -89,7 +86,6 @@ export async function findOrCreateContact(email, firstName, lastName) {
         console.error("Error in findOrCreateContact:", error);
         
         // Re-throw with a more descriptive message
-        // This allows http-functions.js to handle the error appropriately
         throw new Error(`Failed to find or create contact: ${error.message}`);
     }
 }

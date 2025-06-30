@@ -1,7 +1,8 @@
 // src/backend/member-logic.web.js
 // Site Member management logic with race condition prevention
 
-import { authentication, currentMember, members } from 'wix-members-backend';
+// Fix: Use v2 API
+import { authentication, currentMember, members } from 'wix-members-backend.v2';
 
 /**
  * Generate a temporary password for new member registration
@@ -26,17 +27,17 @@ function generateTempPassword() {
  * @returns {Promise<{member: object, wasCreated: boolean}>}
  */
 export async function findOrCreateMember(contactInfo) {
-    // Validate input - using correct Wix CRM contact structure
-    if (!contactInfo || !contactInfo.info?.emails?.[0]?.email) {
+    // Validate input - v2 CRM contacts have primaryInfo.email
+    if (!contactInfo || !contactInfo.primaryInfo?.email) {
         throw new Error("Contact info with a valid email is required to create a member.");
     }
 
-    const email = contactInfo.info.emails[0].email;
+    const email = contactInfo.primaryInfo.email;
     const registrationOptions = {
         contactInfo: {
             contactId: contactInfo._id,  // Include the contact ID for linking
-            firstName: contactInfo.info.name?.first || '',
-            lastName: contactInfo.info.name?.last || ''
+            firstName: contactInfo.info?.name?.first || '',
+            lastName: contactInfo.info?.name?.last || ''
         }
     };
 
@@ -59,13 +60,20 @@ export async function findOrCreateMember(contactInfo) {
         if (error.message && error.message.toLowerCase().includes("already")) {
             console.log(`Member with email ${email} already exists. Querying for existing member...`);
             
-            const existingMembers = await members.queryMembers()
-                .eq("loginEmail", email)
-                .find({ suppressAuth: true });
+            // Fix: Use v2 API query builder pattern
+            const existingMembersResult = await members.queryMembers()
+                .eq('loginEmail', email)
+                .limit(1)
+                .find();
 
-            if (existingMembers.items.length > 0) {
-                console.log(`Found existing member: ${existingMembers.items[0]._id}`);
-                return { member: existingMembers.items[0], wasCreated: false };
+            if (existingMembersResult.items && existingMembersResult.items.length > 0) {
+                console.log(`Found existing member: ${existingMembersResult.items[0]._id}`);
+                return { member: existingMembersResult.items[0], wasCreated: false            } else {
+                // Critical edge case: member exists but can't be found
+                console.error(`FATAL: Member registration for ${email} failed, but could not find existing member.`);
+                throw new Error(`Could not create or find member for ${email}. Database inconsistency detected.`);
+            }
+        } };
             } else {
                 // Critical edge case: member exists but can't be found
                 console.error(`FATAL: Member registration for ${email} failed, but could not find existing member.`);

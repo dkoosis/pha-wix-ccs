@@ -13,15 +13,15 @@ try {
     let fileContent = fs.readFileSync(targetFile, 'utf8');
 
     // 3. Define the version string using the Git hash
-    const versionString = `const CODE_VERSION = "v.${gitHash}";`;
+    const versionString = `const VERSION = "v.${gitHash}";`;
 
     // 4. Replace the existing version line or add it if it doesn't exist
-    if (fileContent.includes('const CODE_VERSION =')) {
-        fileContent = fileContent.replace(/const CODE_VERSION = .*;/, versionString);
+    if (fileContent.includes('const VERSION =')) {
+        fileContent = fileContent.replace(/const VERSION = .*;/, versionString);
     } else {
         // If the line doesn't exist, you might need a more robust way to inject it.
         // For now, this assumes the line is already in the file.
-        console.log('CODE_VERSION line not found. Please add it manually first.');
+        console.log('VERSION line not found. Please add it manually first.');
         process.exit(1);
     }
 
