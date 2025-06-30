@@ -19,8 +19,7 @@ function generateTempPassword() {
 /**
  * Creates a Wix Site Member from contact info using the robust
  * "try-to-create-first" pattern to avoid race conditions.
- * 
- * NOTE: This function is now primarily used by the data hook during
+ * * NOTE: This function is now primarily used by the data hook during
  * the approval process, not during initial application submission.
  *
  * @param {object} contactInfo - A Wix CRM contact object.
@@ -68,12 +67,7 @@ export async function findOrCreateMember(contactInfo) {
 
             if (existingMembersResult.items && existingMembersResult.items.length > 0) {
                 console.log(`Found existing member: ${existingMembersResult.items[0]._id}`);
-                return { member: existingMembersResult.items[0], wasCreated: false            } else {
-                // Critical edge case: member exists but can't be found
-                console.error(`FATAL: Member registration for ${email} failed, but could not find existing member.`);
-                throw new Error(`Could not create or find member for ${email}. Database inconsistency detected.`);
-            }
-        } };
+                return { member: existingMembersResult.items[0], wasCreated: false };
             } else {
                 // Critical edge case: member exists but can't be found
                 console.error(`FATAL: Member registration for ${email} failed, but could not find existing member.`);
