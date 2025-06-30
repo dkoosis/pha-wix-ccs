@@ -1,8 +1,8 @@
 // src/backend/contact-logic.web.js
 // CRM Contact management logic
 
-// Fix: Use the v2 CRM API
-import { contacts } from 'wix-crm.v2';
+// FIXED: Use the correct new SDK import
+import { contacts } from '@wix/crm';
 
 /**
  * Finds a contact by email or creates a new one using the "query-then-create" pattern.
@@ -29,7 +29,7 @@ export async function findOrCreateContact(email, firstName, lastName) {
         // Step 1: Query for existing contact by email
         console.log(`Querying for existing contact with email: ${email}`);
         
-        // Use v2 API query syntax - primaryInfo.email is the correct field
+        // FIXED: Use correct SDK syntax - primaryInfo.email is confirmed correct
         const existingContacts = await contacts.queryContacts()
             .eq("primaryInfo.email", email)
             .limit(1)
@@ -50,8 +50,7 @@ export async function findOrCreateContact(email, firstName, lastName) {
         // Step 3: Create new contact if none exists
         console.log(`No existing contact found. Creating new contact for: ${email}`);
         
-        // Contact structure for v2 API based on documentation
-        // Note: Based on the examples, new emails default to "UNTAGGED"
+        // FIXED: Contact structure for new SDK
         const contactInfo = {
             name: { 
                 first: firstName || '', 
@@ -69,7 +68,7 @@ export async function findOrCreateContact(email, firstName, lastName) {
             // addresses: { items: [{ address: { city: "New York" } }] }
         };
 
-        // createContact returns the new contact directly
+        // FIXED: Use new SDK createContact method
         const createResponse = await contacts.createContact(contactInfo);
         const newContact = createResponse.contact;
         

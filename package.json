@@ -11,5 +11,8 @@
     "dev": "wix dev",
     "lint": "eslint .",
     "prepare": "husky install"
+  },
+  "dependencies": {
+    "@wix/crm": "^1.0.638"
   }
 }

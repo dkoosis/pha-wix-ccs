@@ -3,7 +3,7 @@
     "authorization": {
       "permissions": [
         {
-          "name": "wix-crm-backend.contacts.manage"
+          "name": "crm.contacts.manage"
         }
       ]
     }
