@@ -12,9 +12,6 @@ import {
     findOrCreateContact
 } from './contact-logic.web';
 import {
-    transformFilloutPayload
-} from './collection-schema-updater';
-import {
     isValidApiKey
 } from './auth-utils.web';
 import {
@@ -26,40 +23,8 @@ import {
     verifySchema
 } from './schema-complete-replacement.js';
 
-// import { 
-//     testCollectionAccess,
-//     insertHelloWorld,
-//     getRecentTestEntries 
-// } from './test-functions';
-
 // DO NOT EDIT OR REMOVE. Version tracking for debugging
-const VERSION = "v.3559f03";
-
-/**
- * Returns mapping between form field names and database field names
- */
-function getFieldMapping() {
-    return {
-        'formFieldName': 'dbFieldName',
-        'firstName': 'firstName',
-        'lastName': 'lastName',
-        'hasIndependentExperience': 'hasIndependentExperience',
-        'knowsSafety': 'knowsSafety',
-        'newsletterOptIn': 'newsletterOptIn',
-        'studioTechniques': 'studioTechniques'
-    };
-}
-
-/**
- * Converts various input types to boolean value
- */
-function parseBoolean(value) {
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'string') {
-        return value.toLowerCase() === 'true' || value === '1' || value.toLowerCase() === 'yes';
-    }
-    return false;
-}
+const VERSION = "v.083fd58";
 
 /**
  * Tests if collection access is available
@@ -103,9 +68,8 @@ export async function post_studioApplication(request) {
     console.log(`🚀 API call to studioApplication. Version: ${VERSION}`);
 
     // 1. Authenticate the request
-    const apiKey = request.headers['x-api-key'];
-    if (!isValidApiKey(apiKey)) {
-        // Corrected the response structure for badRequest
+    const isAuthorized = await isValidApiKey(request);
+    if (!isAuthorized) {
         return badRequest({
             body: JSON.stringify({
                 status: 'error',
@@ -115,29 +79,22 @@ export async function post_studioApplication(request) {
     }
 
     try {
-        // 2. Get the request body and transform the payload
+        // 2. Get the request body directly (no transformation needed)
         const body = await request.body.json();
-        const payloadV2 = transformFilloutPayloadToV2(body);
 
-        // 3. Find or create a CRM contact
-        const {
-            contactId,
-            isNew: contactIsNew
-        } = await findOrCreateContact(payloadV2);
-
-        // NOTE: Member creation is stubbed for now.
-        const {
-            memberId,
-            isNew: memberIsNew
-        } = {
-            memberId: 'N/A',
-            isNew: false
-        };
+        // 3. Find or create a CRM contact (currently stubbed)
+        const contactResult = await findOrCreateContact(
+            body.email,
+            body.firstName,
+            body.lastName
+        );
 
         // 4. Prepare the application object for the database
         const application = {
-            ...payloadV2,
-            'wix-contact-id': contactId,
+            ...body,
+            status: body.status || 'Submitted',
+            submissionDate: body.submissionDate || new Date(),
+            title: body.title || `${body.firstName} ${body.lastName} - ${new Date().toISOString().split('T')[0]}`
         };
 
         // 5. Save the application record to the database
@@ -147,27 +104,27 @@ export async function post_studioApplication(request) {
         const responsePayload = {
             status: 'success',
             data: {
-                contactId,
-                contactIsNew,
-                memberId,
-                memberIsNew,
-                applicationId: result._id,
+                contactId: contactResult.contact._id,
+                contactIsNew: contactResult.wasCreated,
+                memberId: 'N/A', // Member creation happens during approval phase
+                memberIsNew: false,
+                applicationId: result.applicationId,
                 version: VERSION
             }
         };
 
         return ok({
-            body: responsePayload
+            body: JSON.stringify(responsePayload)
         });
 
     } catch (error) {
         console.error('Error in studioApplication webhook:', error);
         return serverError({
-            body: {
+            body: JSON.stringify({
                 status: 'error',
                 message: 'An unexpected error occurred.',
                 error: error.message
-            }
+            })
         });
     }
 }
@@ -183,48 +140,6 @@ function createResponse(data, status = 200) {
         },
         body: JSON.stringify(data, null, 2)
     };
-}
-
-/**
- * Transforms Fillout form data to database schema format
- */
-function transformFormData(payload) {
-    const fieldMapping = getFieldMapping();
-    const transformed = {};
-    
-    // Map fields
-    for (const [formField, dbField] of Object.entries(fieldMapping)) {
-        if (payload[formField] !== undefined) {
-            transformed[dbField] = payload[formField];
-        }
-    }
-    
-    // Convert booleans
-    if (transformed.hasIndependentExperience !== undefined) {
-        transformed.hasIndependentExperience = parseBoolean(transformed.hasIndependentExperience);
-    }
-    if (transformed.knowsSafety !== undefined) {
-        transformed.knowsSafety = parseBoolean(transformed.knowsSafety);
-    }
-    if (transformed.newsletterOptIn !== undefined) {
-        transformed.newsletterOptIn = parseBoolean(transformed.newsletterOptIn);
-    }
-    
-    // Handle arrays
-    if (Array.isArray(transformed.studioTechniques)) {
-        transformed.studioTechniques = transformed.studioTechniques.join(', ');
-    }
-    
-    // Add metadata
-    transformed.status = 'Submitted';
-    transformed.submissionDate = new Date();
-    
-    // Create title
-    if (transformed.firstName && transformed.lastName) {
-        transformed.title = `${transformed.firstName} ${transformed.lastName} - ${new Date().toISOString().split('T')[0]}`;
-    }
-    
-    return transformed;
 }
 
 /**
