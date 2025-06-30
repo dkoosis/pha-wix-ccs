@@ -1,8 +1,8 @@
 // src/backend/contact-logic.web.js
 // CRM Contact management logic
 
-// FIXED: Use the correct new SDK import
-import { contacts } from '@wix/crm';
+// Fix: Use the v2 CRM API
+import { contacts } from 'wix-crm.v2';
 
 /**
  * Finds a contact by email or creates a new one using the "query-then-create" pattern.
@@ -29,7 +29,7 @@ export async function findOrCreateContact(email, firstName, lastName) {
         // Step 1: Query for existing contact by email
         console.log(`Querying for existing contact with email: ${email}`);
         
-        // FIXED: Use correct SDK syntax - primaryInfo.email is confirmed correct
+        // Use v2 API query syntax - primaryInfo.email is the correct field
         const existingContacts = await contacts.queryContacts()
             .eq("primaryInfo.email", email)
             .limit(1)
@@ -50,7 +50,8 @@ export async function findOrCreateContact(email, firstName, lastName) {
         // Step 3: Create new contact if none exists
         console.log(`No existing contact found. Creating new contact for: ${email}`);
         
-        // FIXED: Contact structure for new SDK
+        // Contact structure for v2 API based on documentation
+        // Note: Based on the examples, new emails default to "UNTAGGED"
         const contactInfo = {
             name: { 
                 first: firstName || '', 
@@ -68,7 +69,7 @@ export async function findOrCreateContact(email, firstName, lastName) {
             // addresses: { items: [{ address: { city: "New York" } }] }
         };
 
-        // FIXED: Use new SDK createContact method
+        // createContact returns the new contact directly
         const createResponse = await contacts.createContact(contactInfo);
         const newContact = createResponse.contact;
         
@@ -86,5 +87,47 @@ export async function findOrCreateContact(email, firstName, lastName) {
         
         // Re-throw with a more descriptive message
         throw new Error(`Failed to find or create contact: ${error.message}`);
+    }
+}
+
+// ADD THIS TO THE TOP OF contact-logic.web.js (after existing imports)
+import { contacts } from '@wix/crm';
+import { auth } from '@wix/essentials';
+
+/**
+ * TEMPORARY TEST FUNCTION - Remove after confirming it works
+ * Simple test to verify CRM contacts API pattern
+ */
+export async function testCreateContactOnly(email, firstName, lastName) {
+    console.log(`🧪 TEST: Creating contact for ${email}`);
+    
+    try {
+        const contactInfo = {
+            name: {
+                first: firstName || 'Test',
+                last: lastName || 'User'
+            },
+            emails: {
+                items: [{
+                    email: email,
+                    primary: true
+                }]
+            }
+        };
+
+        // Test the elevated permissions pattern
+        const elevatedCreateContact = auth.elevate(contacts.createContact);
+        const result = await elevatedCreateContact(contactInfo);
+        
+        console.log(`🧪 TEST SUCCESS: Contact created with ID ${result.contact._id}`);
+        
+        return {
+            contact: result.contact,
+            wasCreated: true
+        };
+        
+    } catch (error) {
+        console.error("🧪 TEST FAILED:", error);
+        throw error;
     }
 }

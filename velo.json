@@ -1,11 +1,7 @@
 {
   "backend": {
     "authorization": {
-      "permissions": [
-        {
-          "name": "crm.contacts.manage"
-        }
-      ]
+      "permissions": []
     }
   }
 }
