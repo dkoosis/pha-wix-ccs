@@ -1,8 +1,10 @@
 // src/backend/contact-logic.web.js
 // CRM Contact management logic
 
-// Fix: Use the v2 CRM API
-import { contacts } from 'wix-crm.v2';
+import { contacts } from '@wix/crm';
+import { auth } from '@wix/essentials';
+
+
 
 /**
  * Finds a contact by email or creates a new one using the "query-then-create" pattern.
@@ -89,10 +91,6 @@ export async function findOrCreateContact(email, firstName, lastName) {
         throw new Error(`Failed to find or create contact: ${error.message}`);
     }
 }
-
-// ADD THIS TO THE TOP OF contact-logic.web.js (after existing imports)
-import { contacts } from '@wix/crm';
-import { auth } from '@wix/essentials';
 
 /**
  * TEMPORARY TEST FUNCTION - Remove after confirming it works
