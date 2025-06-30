@@ -3,14 +3,13 @@
 
 import { ok, serverError, forbidden } from 'wix-http-functions';
 import { isValidApiKey } from 'backend/auth-utils.web';
-//import { findOrCreateContact } from 'backend/contact-logic.web';
-import { findOrCreateContact, testCreateContactOnly } from 'backend/contact-logic.web';
+import { findOrCreateContact } from 'backend/contact-logic.web';
 import { createApplication, buildApplicationData } from 'backend/data-access';
 import { testCollectionAccess, insertHelloWorld, getRecentTestEntries } from 'backend/data-access';
 
 
 // Version tracking for debugging
-const VERSION = "v.65501ce";
+const VERSION = "v.a0bbae8";
 
 /*
  * Studio Application Webhook - Phase 1: Application Submission Only
@@ -58,8 +57,7 @@ export async function post_studioApplication(request) {
         // Step 1: Create/find CRM contact (for email tracking)
         console.log('📋 Step 1: Creating/finding contact...');
 
-        const { contact, wasCreated: contactIsNew } = await testCreateContactOnly(
-//        const { contact, wasCreated: contactIsNew } = await findOrCreateContact(
+        const { contact, wasCreated: contactIsNew } = await findOrCreateContact(
             payload.email,
             payload.firstName,
             payload.lastName
