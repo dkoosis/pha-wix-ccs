@@ -16,7 +16,7 @@ try {
     const versionString = `const VERSION = "v.${gitHash}";`;
 
     // 4. Replace the existing version line or add it if it doesn't exist
-    if (fileContent.includes('const VERSION = v.')) {
+    if (/const VERSION = .*;/.test(fileContent)) {
         fileContent = fileContent.replace(/const VERSION = .*;/, versionString);
     } else {
         // If the line doesn't exist, you might need a more robust way to inject it.
