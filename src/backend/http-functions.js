@@ -10,7 +10,7 @@ import { testCollectionAccess, insertHelloWorld, getRecentTestEntries } from 'ba
 
 
 // Version tracking for debugging
-const VERSION = "v.e3935bd";
+const VERSION = "v.65501ce";
 
 /*
  * Studio Application Webhook - Phase 1: Application Submission Only
