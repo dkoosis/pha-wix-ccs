@@ -1,19 +1,180 @@
 // src/backend/http-functions.js
-// Add imports for new functionality
-import { ok, badRequest, forbidden, serverError } from 'wix-http-functions';
-import { isValidApiKey } from './auth-utils.web';
-import { createApplication, testCollectionAccess, insertHelloWorld, getRecentTestEntries } from './data-access';
-import { findOrCreateContact } from './contact-logic.web';
-import { requireAdmin, generateSystemReport } from './admin-tools';
+import {
+    ok,
+    badRequest,
+    serverError,
+    forbidden
+} from 'wix-http-functions';
+import {
+    createApplication
+} from './data-access';
+import {
+    findOrCreateContact
+} from './contact-logic.web';
+import {
+    transformFilloutPayload
+} from './collection-schema-updater';
+import {
+    isValidApiKey
+} from './auth-utils.web';
+import {
+    requireAdmin,
+    generateSystemReport
+} from './admin-tools.js';
+import {
+    replaceCollectionSchema,
+    verifySchema
+} from './schema-complete-replacement.js';
 
-// NEW IMPORTS
-import { getFieldMapping, parseBoolean } from './collection-schema-updater';
-import { replaceCollectionSchema, verifySchema } from './schema-complete-replacement';
-
+// import { 
+//     testCollectionAccess,
+//     insertHelloWorld,
+//     getRecentTestEntries 
+// } from './test-functions';
 
 // DO NOT EDIT OR REMOVE. Version tracking for debugging
-const VERSION = "v.4b70641";
+const VERSION = "v.3559f03";
 
+/**
+ * Returns mapping between form field names and database field names
+ */
+function getFieldMapping() {
+    return {
+        'formFieldName': 'dbFieldName',
+        'firstName': 'firstName',
+        'lastName': 'lastName',
+        'hasIndependentExperience': 'hasIndependentExperience',
+        'knowsSafety': 'knowsSafety',
+        'newsletterOptIn': 'newsletterOptIn',
+        'studioTechniques': 'studioTechniques'
+    };
+}
+
+/**
+ * Converts various input types to boolean value
+ */
+function parseBoolean(value) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+        return value.toLowerCase() === 'true' || value === '1' || value.toLowerCase() === 'yes';
+    }
+    return false;
+}
+
+/**
+ * Tests if collection access is available
+ */
+async function testCollectionAccess() {
+    return { 
+        accessible: true, 
+        message: 'Collection access test not implemented' 
+    };
+}
+
+/**
+ * Inserts a test record into the database
+ */
+async function insertHelloWorld() {
+    return {
+        success: false,
+        error: 'insertHelloWorld not implemented',
+        code: 'NOT_IMPLEMENTED'
+    };
+}
+
+/**
+ * Retrieves recent test entries from the database
+ */
+async function getRecentTestEntries(limit) {
+    return [];
+}
+
+// ===================================================================
+// =========================  WEB HOOKS  =============================
+// ===================================================================
+
+/**
+ * Primary webhook for receiving new studio membership applications.
+ * @param {import('wix-http-functions').WixHttpFunctionRequest} request
+ * @returns {Promise<import('wix-http-functions').WixHttpFunctionResponse>}
+ */
+export async function post_studioApplication(request) {
+    // Log the version to confirm which deployment is running
+    console.log(`🚀 API call to studioApplication. Version: ${VERSION}`);
+
+    // 1. Authenticate the request
+    const apiKey = request.headers['x-api-key'];
+    if (!isValidApiKey(apiKey)) {
+        // Corrected the response structure for badRequest
+        return badRequest({
+            body: JSON.stringify({
+                status: 'error',
+                error: 'Invalid API Key'
+            })
+        });
+    }
+
+    try {
+        // 2. Get the request body and transform the payload
+        const body = await request.body.json();
+        const payloadV2 = transformFilloutPayloadToV2(body);
+
+        // 3. Find or create a CRM contact
+        const {
+            contactId,
+            isNew: contactIsNew
+        } = await findOrCreateContact(payloadV2);
+
+        // NOTE: Member creation is stubbed for now.
+        const {
+            memberId,
+            isNew: memberIsNew
+        } = {
+            memberId: 'N/A',
+            isNew: false
+        };
+
+        // 4. Prepare the application object for the database
+        const application = {
+            ...payloadV2,
+            'wix-contact-id': contactId,
+        };
+
+        // 5. Save the application record to the database
+        const result = await createApplication(application);
+
+        // 6. Build the success response payload
+        const responsePayload = {
+            status: 'success',
+            data: {
+                contactId,
+                contactIsNew,
+                memberId,
+                memberIsNew,
+                applicationId: result._id,
+                version: VERSION
+            }
+        };
+
+        return ok({
+            body: responsePayload
+        });
+
+    } catch (error) {
+        console.error('Error in studioApplication webhook:', error);
+        return serverError({
+            body: {
+                status: 'error',
+                message: 'An unexpected error occurred.',
+                error: error.message
+            }
+        });
+    }
+}
+
+/**
+ * Creates a standardized HTTP response object
+ */
 function createResponse(data, status = 200) {
     return {
         status,
@@ -24,7 +185,9 @@ function createResponse(data, status = 200) {
     };
 }
 
-// NEW: Transform Fillout form data
+/**
+ * Transforms Fillout form data to database schema format
+ */
 function transformFormData(payload) {
     const fieldMapping = getFieldMapping();
     const transformed = {};
@@ -64,75 +227,9 @@ function transformFormData(payload) {
     return transformed;
 }
 
-// UPDATED: Main webhook with transform
-export async function post_studioApplication(request) {
-    try {
-        console.log('===== STUDIO APPLICATION WEBHOOK CALLED =====');
-        
-        const isValid = await isValidApiKey(request);
-        if (!isValid) {
-            console.error('Invalid API key provided');
-            return forbidden(createResponse({
-                status: 'error',
-                error: 'INVALID_API_KEY',
-                message: 'Invalid or missing API key'
-            }));
-        }
-        
-        const rawPayload = await request.body.json();
-        console.log('Raw payload received:', JSON.stringify(rawPayload, null, 2));
-        
-        // NEW: Transform the data
-        const applicationData = transformFormData(rawPayload);
-        console.log('Transformed data:', JSON.stringify(applicationData, null, 2));
-        
-        if (!applicationData.email) {
-            return badRequest(createResponse({
-                status: 'error',
-                error: 'MISSING_EMAIL',
-                message: 'Email is required'
-            }));
-        }
-        
-        console.log('[WEBHOOK] Creating/finding contact...');
-        const contactResult = await findOrCreateContact(
-            applicationData.email,
-            applicationData.firstName,
-            applicationData.lastName
-        );
-        
-        console.log('[WEBHOOK] Creating application...');
-        const appResult = await createApplication(applicationData);
-        
-        if (!appResult.success) {
-            throw new Error(appResult.error || 'Failed to create application');
-        }
-        
-        const response = {
-            status: 'success',
-            message: 'Application received successfully',
-            data: {
-                applicationId: appResult.applicationId,
-                contactId: contactResult.contact._id,
-                contactIsNew: contactResult.wasCreated
-            }
-        };
-        
-        console.log('✅ Webhook completed successfully');
-        return ok(createResponse(response));
-        
-    } catch (error) {
-        console.error('❌ Webhook error:', error);
-        return serverError(createResponse({
-            status: 'error',
-            error: 'WEBHOOK_ERROR',
-            message: error.message || 'An unexpected error occurred',
-            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-        }));
-    }
-}
-
-// NEW: Schema management endpoints
+/**
+ * Replaces the current collection schema with new version
+ */
 export async function post_replaceSchema(request) {
     try {
         console.log('===== REPLACE SCHEMA ENDPOINT CALLED =====');
@@ -179,6 +276,9 @@ export async function post_replaceSchema(request) {
     }
 }
 
+/**
+ * Verifies the current collection schema is valid
+ */
 export async function get_verifySchema(request) {
     try {
         console.log('===== VERIFY SCHEMA ENDPOINT CALLED =====');
@@ -202,7 +302,9 @@ export async function get_verifySchema(request) {
     }
 }
 
-// EXISTING ENDPOINTS (unchanged)
+/**
+ * Generates administrative system report
+ */
 export async function get_adminReport(request) {
     try {
         await requireAdmin();
@@ -232,6 +334,9 @@ export async function get_adminReport(request) {
     }
 }
 
+/**
+ * Health check endpoint to verify service availability
+ */
 export async function get_ping(request) {
     console.log('Ping endpoint called');
     return ok(createResponse({
@@ -241,6 +346,9 @@ export async function get_ping(request) {
     }));
 }
 
+/**
+ * Tests database collection access permissions
+ */
 export async function get_testAccess(request) {
     console.log('Test access endpoint called');
     const collectionTest = await testCollectionAccess();
@@ -251,6 +359,9 @@ export async function get_testAccess(request) {
     }));
 }
 
+/**
+ * Creates a test record in the database
+ */
 export async function post_helloInsert(request) {
     console.log('Hello insert endpoint called');
     const insertResult = await insertHelloWorld();
@@ -272,6 +383,9 @@ export async function post_helloInsert(request) {
     }
 }
 
+/**
+ * Retrieves recent test entries from the database
+ */
 export async function get_recentTests(request) {
     console.log('Recent tests endpoint called');
     const testEntries = await getRecentTestEntries(10);
