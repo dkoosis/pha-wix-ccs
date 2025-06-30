@@ -1,10 +1,42 @@
 // src/backend/contact-logic.web.js
 // CRM Contact management logic
 
-import { contacts } from '@wix/crm';
-import { auth } from '@wix/essentials';
+// TEST IMPORTS - Add diagnostic logging to see what's failing
+console.log('🧪 Starting contact-logic.web.js module load...');
 
+// Test import 1
+try {
+    console.log('🧪 Testing @wix/crm import...');
+    var { contacts } = require('@wix/crm');
+    console.log('✅ @wix/crm import successful');
+} catch (error) {
+    console.log('❌ @wix/crm import failed:', error.message);
+    // Fallback - try old import
+    try {
+        var { contacts } = require('wix-crm-backend');
+        console.log('✅ Fallback to wix-crm-backend successful');
+    } catch (fallbackError) {
+        console.log('❌ wix-crm-backend fallback also failed:', fallbackError.message);
+    }
+}
 
+// Test import 2
+try {
+    console.log('🧪 Testing @wix/essentials import...');
+    var { auth } = require('@wix/essentials');
+    console.log('✅ @wix/essentials import successful');
+} catch (error) {
+    console.log('❌ @wix/essentials import failed:', error.message);
+    // Fallback - try old import
+    try {
+        var { elevate } = require('wix-auth');
+        console.log('✅ Fallback to wix-auth successful');
+    } catch (fallbackError) {
+        console.log('❌ wix-auth fallback also failed:', fallbackError.message);
+    }
+}
+
+console.log('🧪 Module imports complete');
 
 /**
  * Finds a contact by email or creates a new one using the "query-then-create" pattern.
@@ -27,69 +59,8 @@ export async function findOrCreateContact(email, firstName, lastName) {
         throw new Error("Email is required to find or create a contact.");
     }
 
-    try {
-        // Step 1: Query for existing contact by email
-        console.log(`Querying for existing contact with email: ${email}`);
-        
-        // Use v2 API query syntax - primaryInfo.email is the correct field
-        const existingContacts = await contacts.queryContacts()
-            .eq("primaryInfo.email", email)
-            .limit(1)
-            .find();
-
-        // Step 2: Return existing contact if found
-        if (existingContacts.items.length > 0) {
-            const existingContact = existingContacts.items[0];
-            console.log(`Found existing contact: ${existingContact._id}`);
-            
-            // Return the existing contact with wasCreated=false
-            return {
-                contact: existingContact,
-                wasCreated: false
-            };
-        }
-
-        // Step 3: Create new contact if none exists
-        console.log(`No existing contact found. Creating new contact for: ${email}`);
-        
-        // Contact structure for v2 API based on documentation
-        // Note: Based on the examples, new emails default to "UNTAGGED"
-        const contactInfo = {
-            name: { 
-                first: firstName || '', 
-                last: lastName || '' 
-            },
-            emails: {
-                items: [{
-                    email: email,
-                    primary: true     // Mark as the primary email address
-                    // tag will be automatically set by the API (defaults to "UNTAGGED")
-                }]
-            }
-            // You can add more fields here like:
-            // phones: { items: [{ phone: "+1234567890", primary: true }] }
-            // addresses: { items: [{ address: { city: "New York" } }] }
-        };
-
-        // createContact returns the new contact directly
-        const createResponse = await contacts.createContact(contactInfo);
-        const newContact = createResponse.contact;
-        
-        console.log(`Created new contact with ID: ${newContact._id}`);
-        
-        // Return structure matches the 'found' case for consistency
-        return {
-            contact: newContact,
-            wasCreated: true
-        };
-        
-    } catch (error) {
-        // Log the full error for debugging
-        console.error("Error in findOrCreateContact:", error);
-        
-        // Re-throw with a more descriptive message
-        throw new Error(`Failed to find or create contact: ${error.message}`);
-    }
+    // TEMPORARY: Just throw an error until we get the imports working
+    throw new Error("Contact creation temporarily disabled until imports are fixed");
 }
 
 /**
@@ -97,7 +68,16 @@ export async function findOrCreateContact(email, firstName, lastName) {
  * Simple test to verify CRM contacts API pattern
  */
 export async function testCreateContactOnly(email, firstName, lastName) {
-    console.log(`🧪 TEST: Creating contact for ${email}`);
+    console.log(`🧪 TEST: Attempting to create contact for ${email}`);
+    
+    // Check what imports are available
+    if (typeof contacts === 'undefined') {
+        throw new Error("🧪 TEST FAILED: contacts API not available");
+    }
+    
+    if (typeof auth === 'undefined' && typeof elevate === 'undefined') {
+        throw new Error("🧪 TEST FAILED: neither auth.elevate nor elevate available");
+    }
     
     try {
         const contactInfo = {
@@ -113,12 +93,38 @@ export async function testCreateContactOnly(email, firstName, lastName) {
             }
         };
 
-        // Test the elevated permissions pattern
-        const elevatedCreateContact = auth.elevate(contacts.createContact);
-        const result = await elevatedCreateContact(contactInfo);
+        console.log(`🧪 TEST: Contact info prepared, attempting API call...`);
+
+        // Try the new pattern first
+        if (typeof auth !== 'undefined' && auth.elevate) {
+            console.log(`🧪 TEST: Using auth.elevate pattern`);
+            const elevatedCreateContact = auth.elevate(contacts.createContact);
+            const result = await elevatedCreateContact(contactInfo);
+            
+            console.log(`🧪 TEST SUCCESS: Contact created with ID ${result.contact._id}`);
+            return {
+                contact: result.contact,
+                wasCreated: true
+            };
+        }
+        
+        // Try the old pattern
+        if (typeof elevate !== 'undefined') {
+            console.log(`🧪 TEST: Using elevate pattern`);
+            const result = await elevate(contacts.createContact)(contactInfo);
+            
+            console.log(`🧪 TEST SUCCESS: Contact created with ID ${result._id}`);
+            return {
+                contact: result,
+                wasCreated: true
+            };
+        }
+        
+        // Try direct call as last resort
+        console.log(`🧪 TEST: Trying direct API call`);
+        const result = await contacts.createContact(contactInfo);
         
         console.log(`🧪 TEST SUCCESS: Contact created with ID ${result.contact._id}`);
-        
         return {
             contact: result.contact,
             wasCreated: true
