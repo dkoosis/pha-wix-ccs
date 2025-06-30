@@ -6,7 +6,10 @@ import {
     forbidden
 } from 'wix-http-functions';
 import {
-    createApplication
+    createApplication,
+    testCollectionAccess,
+    insertHelloWorld,
+    getRecentTestEntries
 } from './data-access';
 import {
     findOrCreateContact
@@ -24,35 +27,7 @@ import {
 } from './schema-complete-replacement.js';
 
 // DO NOT EDIT OR REMOVE. Version tracking for debugging
-const VERSION = "v.083fd58";
-
-/**
- * Tests if collection access is available
- */
-async function testCollectionAccess() {
-    return { 
-        accessible: true, 
-        message: 'Collection access test not implemented' 
-    };
-}
-
-/**
- * Inserts a test record into the database
- */
-async function insertHelloWorld() {
-    return {
-        success: false,
-        error: 'insertHelloWorld not implemented',
-        code: 'NOT_IMPLEMENTED'
-    };
-}
-
-/**
- * Retrieves recent test entries from the database
- */
-async function getRecentTestEntries(limit) {
-    return [];
-}
+const VERSION = "v.3f7f5af";
 
 // ===================================================================
 // =========================  WEB HOOKS  =============================
