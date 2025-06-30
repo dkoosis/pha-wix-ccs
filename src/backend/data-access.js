@@ -95,7 +95,8 @@ export async function getRecentTestEntries(limit = 5) {
 }
 
 /**
- * Create a full application record with member link
+ * Create a full application record
+ * NOTE: No longer links to member - that happens during approval
  */
 export async function createApplication(applicationData) {
     if (!applicationData || !applicationData.email) {
@@ -125,13 +126,12 @@ export async function createApplication(applicationData) {
 
 /**
  * Build application data from form payload
+ * NOTE: No longer includes member ID - members are created during approval, not submission
  */
-export function buildApplicationData(payload, memberId) {
+export function buildApplicationData(payload) {
     const applicationData = {
-        // Link to member
-        // TODO: Confirm 'applicantProfile' is the correct field name in StudioMembershipApplications
-        // This should match the reference field in the collection schema
-        applicantProfile: memberId,
+        // TODO: Change 'applicantProfile' to 'wixMemberId' when schema is updated
+        // Member linking now happens during approval in the data hook
         
         // Basic info
         firstName: payload.firstName || '',
@@ -145,6 +145,13 @@ export function buildApplicationData(payload, memberId) {
         studioTechniques: Array.isArray(payload.hasTechniques) 
             ? payload.hasTechniques.join(', ') 
             : (payload.hasTechniques || payload.studioTechniques || ''),
+        
+        // TODO: Add all additional fields from the actual membership application form:
+        // - experienceDescription
+        // - practiceDescription
+        // - safetyDescription
+        // - knowsSafety
+        // - etc.
         
         // Title for easy identification
         title: `${payload.firstName} ${payload.lastName} - ${new Date().toISOString().split('T')[0]}`
@@ -160,21 +167,6 @@ export function buildApplicationData(payload, memberId) {
     return applicationData;
 }
 
-/**
- * Links a studio application to a site member's private data record.
- * @param {string} applicationId The ID of the application to link.
- * @param {string} memberId The ID of the member.
- * @returns {Promise<{success: boolean, error?: string}>}
- */
-export async function linkApplicationToMember(applicationId, memberId) {
-    try {
-        // The reference field 'siteMember' in 'StudioMembershipApplications'
-        // now correctly points to the 'Members/PrivateMembersData' collection.
-        await wixData.insertReference("StudioMembershipApplications", "siteMember", applicationId, memberId);
-        console.log(`Successfully linked application ${applicationId} to member ${memberId}`);
-        return { success: true };
-    } catch (error) {
-        console.error("Error linking application to member:", error);
-        return { success: false, error: error.message };
-    }
-}
+// REMOVED: linkApplicationToMember function
+// Application-to-member linking now happens in the data hook during approval
+// using wixData.update() with the member ID

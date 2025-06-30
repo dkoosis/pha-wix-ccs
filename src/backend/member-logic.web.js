@@ -2,9 +2,6 @@
 // Site Member management logic with race condition prevention
 
 import { authentication, currentMember, members } from 'wix-members-backend';
-import wixData from 'wix-data';
-
-const MEMBERS_COLLECTION = 'Members/PrivateMembersData';
 
 /**
  * Generate a temporary password for new member registration
@@ -21,6 +18,9 @@ function generateTempPassword() {
 /**
  * Creates a Wix Site Member from contact info using the robust
  * "try-to-create-first" pattern to avoid race conditions.
+ * 
+ * NOTE: This function is now primarily used by the data hook during
+ * the approval process, not during initial application submission.
  *
  * @param {object} contactInfo - A Wix CRM contact object.
  * @returns {Promise<{member: object, wasCreated: boolean}>}
@@ -79,46 +79,7 @@ export async function findOrCreateMember(contactInfo) {
     }
 }
 
-/**
- * Ensures a member has a profile in the PrivateMembersData collection using atomic upsert.
- * Uses wixData.save() to avoid race conditions.
- * 
- * @param {object} memberInfo The member object from wix-members-backend.
- * @returns {Promise<{success: boolean, memberProfile?: object, created?: boolean, error?: string}>}
- */
-export async function ensureMemberProfile(memberInfo) {
-    const options = { suppressAuth: true };
-    const memberId = memberInfo._id;
-
-    try {
-        // BEST PRACTICE: Use save() for atomic upsert operation
-        // This avoids the race condition of check-then-write
-        const profileToSave = {
-            _id: memberId,  // Required for save() to know whether to update or insert
-            loginEmail: memberInfo.loginEmail,
-            registrationDate: memberInfo.registrationDate || new Date(),
-            // Add any other default fields you want for new profiles
-            // Note: save() will NOT overwrite existing fields unless explicitly provided
-        };
-
-        const savedProfile = await wixData.save(MEMBERS_COLLECTION, profileToSave, options);
-        console.log(`Ensured PrivateMembersData record for member ${memberId}`);
-        
-        // Note: wixData.save() doesn't tell us if it was an insert or update
-        // If you need to know, you can check _createdDate vs _updatedDate
-        const created = savedProfile._createdDate === savedProfile._updatedDate;
-        
-        return { 
-            success: true, 
-            memberProfile: savedProfile,
-            created: created
-        };
-
-    } catch (error) {
-        console.error(`Error ensuring member profile in PrivateMembersData for ${memberId}:`, error);
-        return { 
-            success: false, 
-            error: error.message 
-        };
-    }
-}
+// REMOVED: ensureMemberProfile function
+// The Members/PrivateMembersData collection is read-only and managed by Wix.
+// Member profiles are now tracked in a custom MemberProfiles collection as per
+// the workflow document (Phase 3).
