@@ -1,7 +1,7 @@
 // src/backend/admin-tools.js
 // Admin tools module (separated from HTTP functions)
 
-import { currentMember, members, authentication } from 'wix-members-backend.v2';
+import { currentMember, members, authentication } from 'wix-members-backend';
 import wixData from 'wix-data';
 import { elevate } from 'wix-auth';
 

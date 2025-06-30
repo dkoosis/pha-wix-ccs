@@ -8,7 +8,7 @@ import { createApplication, buildApplicationData } from 'backend/data-access';
 import { testCollectionAccess, insertHelloWorld, getRecentTestEntries } from 'backend/data-access';
 
 // Version tracking for debugging
-const VERSION = "v.bbc67bc";
+const VERSION = "v.50d50cf";
 
 /*
  * Studio Application Webhook - Phase 1: Application Submission Only

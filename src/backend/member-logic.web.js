@@ -2,7 +2,7 @@
 // Site Member management logic with race condition prevention
 
 // Fix: Use v2 API
-import { authentication, currentMember, members } from 'wix-members-backend.v2';
+import { authentication, currentMember, members } from 'wix-members-backend';
 
 /**
  * Generate a temporary password for new member registration
