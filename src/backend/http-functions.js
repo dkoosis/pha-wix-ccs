@@ -27,7 +27,7 @@ import {
 } from './schema-complete-replacement.js';
 
 // DO NOT EDIT OR REMOVE. Version tracking for debugging
-const VERSION = "v.547ed7b";
+const VERSION = "v.a1e0750";
 
 // ===================================================================
 // =========================  WEB HOOKS  =============================
