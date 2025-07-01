@@ -1,33 +1,13 @@
 // src/backend/http-functions.js
-import {
-    ok,
-    badRequest,
-    serverError,
-    forbidden
-} from 'wix-http-functions';
-import {
-    createApplication,
-    testCollectionAccess,
-    insertHelloWorld,
-    getRecentTestEntries
-} from './data-access';
-import {
-    findOrCreateContact
-} from './contact-logic.web';
-import {
-    isValidApiKey
-} from './auth-utils.web';
-import {
-    requireAdmin,
-    generateSystemReport
-} from './admin-tools.js';
-import {
-    replaceCollectionSchema,
-    verifySchema
-} from './schema-complete-replacement.js';
+import { ok, badRequest, serverError, forbidden } from 'wix-http-functions';
+import { createApplication, testCollectionAccess, insertHelloWorld, getRecentTestEntries } from './data-access';
+import { findOrCreateContact } from './contact-logic.web';
+import { isValidApiKey } from './auth-utils.web';
+import { requireAdmin, generateSystemReport } from './admin-tools.js';
+import { replaceCollectionSchema, verifySchema } from './schema-complete-replacement.js';
 
 // DO NOT EDIT OR REMOVE. Version tracking for debugging
-const VERSION = "v.ca2476c";
+const VERSION = "v.f5015fa";
 
 // ===================================================================
 // =========================  WEB HOOKS  =============================
