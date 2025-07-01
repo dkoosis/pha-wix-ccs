@@ -1,5 +1,5 @@
 // src/backend/schema-complete-replacement.js
-// Complete schema replacement with 28 essential fields
+// Complete schema replacement with admin review fields and accessibility
 
 // IMPORTANT: collections API requires wix-data.v2 - this is NOT a style choice
 // The collections schema management API is ONLY available in v2
@@ -41,7 +41,6 @@ function getCompleteSchema() {
             { key: 'experienceDescription', type: 'TEXT', displayName: 'Experience Description', required: false, stringLengthRange: { maxLength: 2000 } },
             { key: 'knowsSafety', type: 'BOOLEAN', displayName: 'Familiar with Health & Safety', required: false },
             { key: 'safetyDescription', type: 'TEXT', displayName: 'Safety Procedures Description', required: false, stringLengthRange: { maxLength: 2000 } },
-            // TAGS type doesn't exist in collections API - use ARRAY_STRING
             { key: 'studioTechniques', type: 'ARRAY_STRING', displayName: 'Studio Techniques', required: false },
             { key: 'practiceDescription', type: 'TEXT', displayName: 'Studio Practice Description', required: false, stringLengthRange: { maxLength: 3000 } },
             
@@ -52,14 +51,29 @@ function getCompleteSchema() {
             { key: 'howHeardAbout', type: 'TEXT', displayName: 'How Heard About Studio', required: false },
             { key: 'questionsComments', type: 'TEXT', displayName: 'Questions or Comments', required: false, stringLengthRange: { maxLength: 2000 } },
             
-            // Meta (6)
+            // Accessibility
+            { key: 'accessibilityNote', type: 'TEXT', displayName: 'Accessibility Accommodations Needed', required: false, stringLengthRange: { maxLength: 2000 } },
+            
+            // Meta & Application Processing
             { key: 'submissionId', type: 'TEXT', displayName: 'Fillout Submission ID', required: false },
-            { key: 'enrichmentInfo', type: 'TEXT', displayName: 'Enrichment Info', required: false },
+            { key: 'enrichmentInfo', type: 'TEXT', displayName: 'Enrichment Info', required: false, stringLengthRange: { maxLength: 3000 } },
             { key: 'status', type: 'TEXT', displayName: 'Application Status', required: false },
             { key: 'submissionDate', type: 'DATETIME', displayName: 'Submission Date', required: false },
+            { key: 'newsletterOptIn', type: 'BOOLEAN', displayName: 'Newsletter Opt-In', required: false },
+            
+            // Approval Process
             { key: 'approvalDate', type: 'DATETIME', displayName: 'Approval Date', required: false },
-            { key: 'wixMemberId', type: 'TEXT', displayName: 'Linked Wix Member ID', required: false },
-            { key: 'newsletterOptIn', type: 'BOOLEAN', displayName: 'Newsletter Opt-In', required: false }
+            { key: 'approvalNotes', type: 'TEXT', displayName: 'Approval Notes', required: false, stringLengthRange: { maxLength: 2000 } },
+            { key: 'approvedBy', type: 'TEXT', displayName: 'Approved By (Email)', required: false },
+            
+            // Rejection Process  
+            { key: 'rejectionDate', type: 'DATETIME', displayName: 'Rejection Date', required: false },
+            { key: 'rejectionNotes', type: 'TEXT', displayName: 'Rejection Notes', required: false, stringLengthRange: { maxLength: 2000 } },
+            { key: 'rejectedBy', type: 'TEXT', displayName: 'Rejected By (Email)', required: false },
+            
+            // Wix Integration IDs
+            { key: 'wixContactId', type: 'TEXT', displayName: 'Linked Wix Contact ID', required: false },
+            { key: 'wixMemberId', type: 'TEXT', displayName: 'Linked Wix Member ID', required: false }
         ]
     };
 }
