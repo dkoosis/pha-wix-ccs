@@ -27,7 +27,7 @@ import {
 } from './schema-complete-replacement.js';
 
 // DO NOT EDIT OR REMOVE. Version tracking for debugging
-const VERSION = "v.3f7f5af";
+const VERSION = "v.cfaeeca";
 
 // ===================================================================
 // =========================  WEB HOOKS  =============================
@@ -71,6 +71,21 @@ export async function post_studioApplication(request) {
             submissionDate: body.submissionDate || new Date(),
             title: body.title || `${body.firstName} ${body.lastName} - ${new Date().toISOString().split('T')[0]}`
         };
+
+        // Fix website URL if missing protocol
+        if (application.website && !application.website.match(/^https?:\/\//)) {
+            application.website = 'https://' + application.website;
+        }
+
+        // Ensure studioTechniques is joined for tags field
+        if (Array.isArray(application.studioTechniques)) {
+            application.studioTechniques = application.studioTechniques.join(', ');
+        }
+
+        // TODO: Add disability accommodation question to form (ADA compliance)
+        // TODO: Fillout enrichment data needs concatenation - check if on Fillout side or here
+        // TODO: Currently no contact info captured for rejected applicants - fix workflow
+        // TODO: Verify auto email ACK - from Fillout or implement in Wix?
 
         // 5. Save the application record to the database
         const result = await createApplication(application);

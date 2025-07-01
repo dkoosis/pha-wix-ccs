@@ -28,7 +28,7 @@ export function getFieldMapping() {
         'Powerhouse Arts welcomes ceramics artists working within a wide variety of traditions and techniques. Please tell us about your studio practice.': 'practiceDescription',
         
         // Community
-        'What accommodation are you considering?': 'accommodationType',
+        'What accommodation are you considering?': 'studioSpaceType',
         'The Community Ceramics Studio aims to foster a welcoming community and a safe clean work environment. How can you help support these goals?': 'communityGoalsSupport',
         'What interests you most about being part of a community studio and how do you hope to contribute?': 'communityInterests',
         'How did you hear about the Community Ceramics Studio at Powerhouse Arts?': 'howHeardAbout',
@@ -49,4 +49,43 @@ export function parseBoolean(value) {
         return normalized === 'yes' || normalized === 'true' || normalized === '1';
     }
     return false;
+}
+
+export function transformFilloutPayload(payload) {
+    const fieldMapping = getFieldMapping();
+    const transformed = {};
+    
+    // Map fields
+    for (const [formField, dbField] of Object.entries(fieldMapping)) {
+        if (payload[formField] !== undefined) {
+            transformed[dbField] = payload[formField];
+        }
+    }
+    
+    // Convert booleans
+    if (transformed.hasIndependentExperience !== undefined) {
+        transformed.hasIndependentExperience = parseBoolean(transformed.hasIndependentExperience);
+    }
+    if (transformed.knowsSafety !== undefined) {
+        transformed.knowsSafety = parseBoolean(transformed.knowsSafety);
+    }
+    if (transformed.newsletterOptIn !== undefined) {
+        transformed.newsletterOptIn = parseBoolean(transformed.newsletterOptIn);
+    }
+    
+    // Handle arrays - join for tags field
+    if (Array.isArray(transformed.studioTechniques)) {
+        transformed.studioTechniques = transformed.studioTechniques.join(', ');
+    }
+    
+    // Add metadata
+    transformed.status = 'Submitted';
+    transformed.submissionDate = new Date();
+    
+    // Create title
+    if (transformed.firstName && transformed.lastName) {
+        transformed.title = `${transformed.firstName} ${transformed.lastName} - ${new Date().toISOString().split('T')[0]}`;
+    }
+    
+    return transformed;
 }

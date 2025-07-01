@@ -1,7 +1,10 @@
 // src/backend/schema-complete-replacement.js
 // Complete schema replacement with 28 essential fields
 
-import { collections } from 'wix-data';
+// IMPORTANT: collections API requires wix-data.v2 - this is NOT a style choice
+// The collections schema management API is ONLY available in v2
+// Do NOT change this import - it will break
+import { collections } from 'wix-data.v2';
 import { elevate } from 'wix-auth';
 
 const COLLECTION_ID = 'StudioMembershipApplications';
@@ -38,11 +41,12 @@ function getCompleteSchema() {
             { key: 'experienceDescription', type: 'TEXT', displayName: 'Experience Description', required: false, stringLengthRange: { maxLength: 2000 } },
             { key: 'knowsSafety', type: 'BOOLEAN', displayName: 'Familiar with Health & Safety', required: false },
             { key: 'safetyDescription', type: 'TEXT', displayName: 'Safety Procedures Description', required: false, stringLengthRange: { maxLength: 2000 } },
-            { key: 'studioTechniques', type: 'TEXT', displayName: 'Studio Techniques', required: false, stringLengthRange: { maxLength: 1000 } },
+            // TAGS type doesn't exist in collections API - use ARRAY_STRING
+            { key: 'studioTechniques', type: 'ARRAY_STRING', displayName: 'Studio Techniques', required: false },
             { key: 'practiceDescription', type: 'TEXT', displayName: 'Studio Practice Description', required: false, stringLengthRange: { maxLength: 3000 } },
             
             // Community (5)
-            { key: 'accommodationType', type: 'TEXT', displayName: 'Accommodation Considering', required: false },
+            { key: 'studioSpaceType', type: 'TEXT', displayName: 'Studio Space Type', required: false },
             { key: 'communityGoalsSupport', type: 'TEXT', displayName: 'How to Support Community Goals', required: false, stringLengthRange: { maxLength: 2000 } },
             { key: 'communityInterests', type: 'TEXT', displayName: 'Community Interests & Contribution', required: false, stringLengthRange: { maxLength: 2000 } },
             { key: 'howHeardAbout', type: 'TEXT', displayName: 'How Heard About Studio', required: false },
@@ -86,6 +90,7 @@ export async function replaceCollectionSchema() {
         };
         
         const updateCollection = elevate(collections.updateDataCollection);
+        // @ts-ignore - TypeScript incorrectly validates string literals as enum types
         const result = await updateCollection(updatedCollection);
         
         console.log('✅ Schema replacement completed successfully!');
