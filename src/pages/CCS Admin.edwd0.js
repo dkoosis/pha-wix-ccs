@@ -1,7 +1,7 @@
-// src/pages/ccs-admin.js
-import { replaceCollectionSchema, verifySchema } from 'backend/schema-complete-replacement.js';
+// src/pages/edwd0.js
+import { replaceSchema, verifyCurrentSchema } from 'backend/schema-management.web.js';
 
-console.log('CCS Admin page code loaded');
+console.log('Admin page code loaded');
 
 $w.onReady(function () {
     console.log('Page ready, checking for button...');
@@ -15,7 +15,7 @@ $w.onReady(function () {
             $w('#updateSchemaButton').disable();
             
             try {
-                const result = await replaceCollectionSchema();
+                const result = await replaceSchema();
                 console.log('Schema update result:', result);
                 
                 if (result.success) {
