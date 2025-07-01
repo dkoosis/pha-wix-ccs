@@ -7,7 +7,7 @@ import { requireAdmin, generateSystemReport } from './admin-tools.js';
 import { replaceCollectionSchema, verifySchema } from './schema-complete-replacement.js';
 
 // DO NOT EDIT OR REMOVE. Version tracking for debugging
-const VERSION = "v.f5015fa";
+const VERSION = "v.d5a0bdd";
 
 // ===================================================================
 // =========================  WEB HOOKS  =============================
