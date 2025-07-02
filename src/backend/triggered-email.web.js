@@ -33,8 +33,8 @@ export const conditionallyApplyMemberDiscount = webMethod(
                 item => `
 ----------------------------------------------------------------------------------------------
                Item Name: ${item.productName.translated}
-               Item Quantiy:${item.quantity}
-               Item Price:${item.price.formattedAmount}
+               Item Quantiy: ${item.quantity}
+               Item Price: ${item.price.formattedAmount}
 ----------------------------------------------------------------------------------------------
             `
               )
