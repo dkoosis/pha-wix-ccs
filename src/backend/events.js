@@ -1,5 +1,5 @@
 import { authorization } from 'wix-members-backend';
-import {}
+import {sendReciept} from 'backend/triggered-email.web'
 export async function wixMembers_onMemberCreated(event) {
     const memberId = event.entity._id;
     await authorization.assignRole("2ade445c-7265-420a-8102-484abdd3dc54", memberId, {
@@ -15,7 +15,7 @@ export function wixEcom_onOrderPaymentStatusUpdated(event) {
   const orderTotalPrice = event.data.order.priceSummary.totalPrice.amount;
   const eventId = event.metadata.id;
   if(currentPaymentStatus == "PAID") {
-      
+      sendReciept(orderId)
   }
 }
 
