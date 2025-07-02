@@ -27,30 +27,31 @@ export const conditionallyApplyMemberDiscount = webMethod(
       const paymentTotal = order.balanceSummary.paid.formattedAmount;
 
       // Build HTML table of items
-      const html = `
-        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
-          <thead>
-            <tr style="background-color:#f2f2f2;">
-              <th>Product</th>
-              <th>Quantity</th>
-              <th>Price</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${order.lineItems
-              .map(
-                item => `
-              <tr>
-                <td>${item.productName.translated}</td>
-                <td>${item.quantity}</td>
-                <td>${item.price.formattedAmount}</td>
-              </tr>
-            `
-              )
-              .join("")}
-          </tbody>
-        </table>
-      `;
+      // const html = `
+      //   <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
+      //     <thead>
+      //       <tr style="background-color:#f2f2f2;">
+      //         <th>Product</th>
+      //         <th>Quantity</th>
+      //         <th>Price</th>
+      //       </tr>
+      //     </thead>
+      //     <tbody>
+      //       ${order.lineItems
+      //         .map(
+      //           item => `
+      //         <tr>
+      //           <td>${item.productName.translated}</td>
+      //           <td>${item.quantity}</td>
+      //           <td>${item.price.formattedAmount}</td>
+      //         </tr>
+      //       `
+      //         )
+      //         .join("")}
+      //     </tbody>
+      //   </table>
+      // `;
+      const html = "<p style=\"text-align: left; line-height: 1.5em\" class=\"so-global-p1\"><span style=\"line-height: 1.5em\"><span style=\"font-style: normal\">Hi there,</span></span></p><p style=\"text-align: left; line-height: 1.5em\" class=\"so-global-p1\"><span style=\"line-height: 1.5em\"><br><span style=\"font-style: normal\">Thank you for placing your order with Powerhouse Ceramics. Here’s a quick summary of your order:</span><br>&nbsp;</span></p><p style=\"text-align: left; line-height: 1.5em; font-size: 16px\" class=\"so-global-p1\"><span style=\"font-size: 16px\"><span style=\"line-height: 1.5em\"><span style=\"font-weight: bold\"><span style=\"font-style: normal\">Order Date:</span></span><span style=\"font-style: normal\">&nbsp;<bdi>${orderDate}</bdi>&nbsp;</span><br><span style=\"font-weight: bold\"><span style=\"font-style: normal\">Order Number:</span></span><span style=\"font-style: normal\">&nbsp;<bdi>${orderNumber}</bdi>&nbsp;</span><br><br><span style=\"font-weight: bold\">Name:</span> <bdi>${customerName}</bdi>&nbsp;<br><span style=\"font-weight: bold\">Company Name:</span> <bdi>${companyName}</bdi>&nbsp;<br><span style=\"font-weight: bold\">Email Address:</span> <bdi>${customerEmailAddress}</bdi>&nbsp;<br><span style=\"font-weight: bold\">Phone Number:</span> <bdi>${customerPhoneNumber}</bdi>&nbsp;<br><br><span style=\"font-weight: bold\"><span style=\"font-style: normal\">Item Name:</span></span><span style=\"font-style: normal\"> <bdi>${itemName}</bdi>&nbsp;</span><br><span style=\"font-weight: bold\"><span style=\"font-style: normal\">Item Description:</span></span><span style=\"font-style: normal\"> <bdi>${itemDescription}</bdi>&nbsp;</span><br><span style=\"font-weight: bold\"><span style=\"font-style: normal\">Item Quantity:</span></span><span style=\"font-style: normal\"> <bdi>${itemQuantity}</bdi>&nbsp;</span><br><span style=\"font-weight: bold\"><span style=\"font-style: normal\">Item Price:</span></span><span style=\"font-style: normal\"> <bdi>${itemPrice}</bdi>&nbsp;</span><br><br><span style=\"font-weight: bold\">Order Subtotal:</span> <bdi>${orderSubtotal}</bdi>&nbsp;<br><span style=\"font-weight: bold\">Taxes:</span> <bdi>${tax}</bdi>&nbsp;<br><span style=\"font-weight: bold\"><span style=\"font-style: normal\">Order Total Amount:</span></span><span style=\"font-style: normal\"> <bdi>${orderTotalAmount}</bdi>&nbsp;</span></span></span></p>"
       // Trigger the email
       await triggeredEmails.emailContact(
         "Upm0b8C", // Triggered email ID
