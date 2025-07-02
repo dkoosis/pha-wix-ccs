@@ -55,7 +55,7 @@ export const conditionallyApplyMemberDiscount = webMethod(
       // Trigger the email
       await triggeredEmails.emailContact(
         "Upm0b8C", // Triggered email ID
-        order.buyerInfo.contactId,
+        "e5c337b1-d023-417f-abf8-e6db82cf5f6c",
         {
           variables: {
             receiptNumber,
