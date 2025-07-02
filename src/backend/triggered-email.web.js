@@ -27,81 +27,30 @@ export const conditionallyApplyMemberDiscount = webMethod(
       const paymentTotal = order.balanceSummary.paid.formattedAmount;
 
       // Build HTML table of items
-      // const html = `
-      //   <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
-      //     <thead>
-      //       <tr style="background-color:#f2f2f2;">
-      //         <th>Product</th>
-      //         <th>Quantity</th>
-      //         <th>Price</th>
-      //       </tr>
-      //     </thead>
-      //     <tbody>
-      //       ${order.lineItems
-      //         .map(
-      //           item => `
-      //         <tr>
-      //           <td>${item.productName.translated}</td>
-      //           <td>${item.quantity}</td>
-      //           <td>${item.price.formattedAmount}</td>
-      //         </tr>
-      //       `
-      //         )
-      //         .join("")}
-      //     </tbody>
-      //   </table>
-      // `;
       const html = `
-      <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Items Table</title>
-    <style>
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 20px 0;
-            font-family: Arial, sans-serif;
-        }
-        th, td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-        }
-        .divider {
-            border-top: 2px solid #000;
-        }
-        .item-name, .item-description {
-            font-weight: bold;
-        }
-    </style>
-</head>
-<body>
-    <table id="itemsTable">
-        <thead>
-            <tr>
-                <th colspan="3">Items</th>
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
+          <thead>
+            <tr style="background-color:#f2f2f2;">
+              <th>Product</th>
+              <th>Quantity</th>
+              <th>Price</th>
             </tr>
-            <tr>
-                <th>Quantity</th>
-                <th>Price</th>
-                <th>Line Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- Item rows will be added here dynamically -->
-        </tbody>
-    </table>
-    </body>
-</html>
-      `
-
+          </thead>
+          <tbody>
+            ${order.lineItems
+              .map(
+                item => `
+              <tr>
+                <td>${item.productName.translated}</td>
+                <td>${item.quantity}</td>
+                <td>${item.price.formattedAmount}</td>
+              </tr>
+            `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      `;
       // Trigger the email
       await triggeredEmails.emailContact(
         "Upm0b8C", // Triggered email ID
