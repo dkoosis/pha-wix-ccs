@@ -31,8 +31,8 @@ export const conditionallyApplyMemberDiscount = webMethod(
             ${order.lineItems
               .map(
                 item => `
-                ${item.productName.translated}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-                ${item.quantity}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                ${item.productName.translated}
+                ${item.quantity}
                 ${item.price.formattedAmount}
             `
               )
