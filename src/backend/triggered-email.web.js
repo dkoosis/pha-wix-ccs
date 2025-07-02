@@ -1,5 +1,5 @@
 import { Permissions, webMethod } from "wix-web-module";
-import { triggeredEmails } from "wix-crm";
+import { triggeredEmails } from "wix-crm-backend";
 import { orders } from "wix-ecom-backend";
 export const conditionallyApplyMemberDiscount = webMethod(
   Permissions.Anyone,
