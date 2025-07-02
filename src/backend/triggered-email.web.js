@@ -65,6 +65,30 @@ export const sendReciept = webMethod(
         }
       );
 
+       await triggeredEmails.emailContact(
+        "Upm0b8C", // Triggered email ID
+        "0475997f-2ad0-4c89-85cb-7f82eb8f03a1",
+        {
+          variables: {
+            receiptNumber,
+            orderNumber: order._id,
+            orderDate,
+            customerName,
+            companyName,
+            customerEmailAddress: customerEmail,
+            customerPhoneNumber: customerPhone,
+            orderSubtotal: subtotal,
+            tax,
+            orderTotalAmount: total,
+            items: html,
+            paymentDate,
+            paymentCard,
+            paymentTotal,
+            SITE_URL
+          }
+        }
+      );
+
     } catch (error) {
       console.error("Error sending email:", error);
     }
