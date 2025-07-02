@@ -34,7 +34,6 @@ export const conditionallyApplyMemberDiscount = webMethod(
                Item Name: ${item.productName.translated}
                Item Quantiy: ${item.quantity}
                Item Price: ${item.price.formattedAmount}
-
 ----------------------------------------------------------------------------------------------
             `
               )
@@ -44,7 +43,7 @@ export const conditionallyApplyMemberDiscount = webMethod(
   // Trigger the email
       await triggeredEmails.emailContact(
         "Upm0b8C", // Triggered email ID
-        "80dbc5a6-69d4-4df8-a040-2ad212b7a8cb",
+        "087762eb-1ce1-4854-99ce-f30da6c8630c",
         {
           variables: {
             receiptNumber,
