@@ -28,28 +28,15 @@ export const conditionallyApplyMemberDiscount = webMethod(
 
       // Build HTML table of items
       const html = `
-        <table borderÏ="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
-          <thead>
-            <tr style="background-color:#f2f2f2;">
-              <th>Product</th>
-              <th>Quantity</th>
-              <th>Price</th>
-            </tr>
-          </thead>
-          <tbody>
             ${order.lineItems
               .map(
                 item => `
-              <tr>
-                <td>${item.productName.translated}</td>
-                <td>${item.quantity}</td>
-                <td>${item.price.formattedAmount}</td>
-              </tr>
+                ${item.productName.translated}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                ${item.quantity}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                ${item.price.formattedAmount}
             `
               )
               .join("")}
-          </tbody>
-        </table>
       `;
       
   // Trigger the email
