@@ -4,9 +4,8 @@ import { orders } from "wix-ecom-backend";
 
 export const conditionallyApplyMemberDiscount = webMethod(
   Permissions.Anyone,
-  async () => {
+  async (order) => {
     try {
-      const order = await orders.getOrder("960f925b-c03f-49fd-95a4-6ea043353015");
       console.log("order", order);
 
       // Extract necessary fields
