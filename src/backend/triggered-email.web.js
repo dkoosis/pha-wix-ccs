@@ -2,7 +2,7 @@ import { Permissions, webMethod } from "wix-web-module";
 import { triggeredEmails } from "wix-crm-backend";
 import { orders } from "wix-ecom-backend";
 
-export const conditionallyApplyMemberDiscount = webMethod(
+export const sendReciept = webMethod(
   Permissions.Anyone,
   async (orderId) => {
     try {
