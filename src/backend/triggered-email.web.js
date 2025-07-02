@@ -31,7 +31,7 @@ export const conditionallyApplyMemberDiscount = webMethod(
             ${order.lineItems
               .map(
                 item => `
-               ${item.productName.translated}  ${item.quantity}  ${item.price.formattedAmount}
+               ${item.productName.translated}     ${item.quantity}         ${item.price.formattedAmount}
             `
               )
               .join("")}
