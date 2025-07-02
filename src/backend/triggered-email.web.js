@@ -52,7 +52,54 @@ export const conditionallyApplyMemberDiscount = webMethod(
       //   </table>
       // `;
       const html = `
-      <p>test</p>
+      <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Items Table</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-family: Arial, sans-serif;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .divider {
+            border-top: 2px solid #000;
+        }
+        .item-name, .item-description {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <table id="itemsTable">
+        <thead>
+            <tr>
+                <th colspan="3">Items</th>
+            </tr>
+            <tr>
+                <th>Quantity</th>
+                <th>Price</th>
+                <th>Line Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Item rows will be added here dynamically -->
+        </tbody>
+    </table>
+    </body>
+</html>
       `
 
       // Trigger the email
