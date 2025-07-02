@@ -27,30 +27,33 @@ export const conditionallyApplyMemberDiscount = webMethod(
       const paymentTotal = order.balanceSummary.paid.formattedAmount;
 
       // Build HTML table of items
+      // const html = `
+      //   <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
+      //     <thead>
+      //       <tr style="background-color:#f2f2f2;">
+      //         <th>Product</th>
+      //         <th>Quantity</th>
+      //         <th>Price</th>
+      //       </tr>
+      //     </thead>
+      //     <tbody>
+      //       ${order.lineItems
+      //         .map(
+      //           item => `
+      //         <tr>
+      //           <td>${item.productName.translated}</td>
+      //           <td>${item.quantity}</td>
+      //           <td>${item.price.formattedAmount}</td>
+      //         </tr>
+      //       `
+      //         )
+      //         .join("")}
+      //     </tbody>
+      //   </table>
+      // `;
       const html = `
-        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
-          <thead>
-            <tr style="background-color:#f2f2f2;">
-              <th>Product</th>
-              <th>Quantity</th>
-              <th>Price</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${order.lineItems
-              .map(
-                item => `
-              <tr>
-                <td>${item.productName.translated}</td>
-                <td>${item.quantity}</td>
-                <td>${item.price.formattedAmount}</td>
-              </tr>
-            `
-              )
-              .join("")}
-          </tbody>
-        </table>
-      `;
+      <p>test</p>
+      `
 
       // Trigger the email
       await triggeredEmails.emailContact(
