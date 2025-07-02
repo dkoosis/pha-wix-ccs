@@ -27,32 +27,32 @@ export const conditionallyApplyMemberDiscount = webMethod(
       const paymentTotal = order.balanceSummary.paid.formattedAmount;
 
       // Build HTML table of items
-      // const html = `
-      //   <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
-      //     <thead>
-      //       <tr style="background-color:#f2f2f2;">
-      //         <th>Product</th>
-      //         <th>Quantity</th>
-      //         <th>Price</th>
-      //       </tr>
-      //     </thead>
-      //     <tbody>
-      //       ${order.lineItems
-      //         .map(
-      //           item => `
-      //         <tr>
-      //           <td>${item.productName.translated}</td>
-      //           <td>${item.quantity}</td>
-      //           <td>${item.price.formattedAmount}</td>
-      //         </tr>
-      //       `
-      //         )
-      //         .join("")}
-      //     </tbody>
-      //   </table>
-      // `;
-      const html = "<table border=\\\"1\\\" cellpadding=\\\"8\\\" cellspacing=\\\"0\\\" style=\\\"border-collapse:collapse; width:100%;\\\">\\n<thead>\\n<tr style=\\\"background-color:#f2f2f2;\\\">\\nProduct\\nQuantity\\nPrice\\n</tr>\\n</thead>\\n<tbody>\\n\\n<tr>\\n<td>Ceramic 3D Printing with Nicolas Touron</td>\\n<td>1</td>\\n<td>$980.00</td>\\n</tr>\\n\\n</tbody>\\n</table>\"
-   // Trigger the email
+      const html = `
+        <table borderÏ="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
+          <thead>
+            <tr style="background-color:#f2f2f2;">
+              <th>Product</th>
+              <th>Quantity</th>
+              <th>Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${order.lineItems
+              .map(
+                item => `
+              <tr>
+                <td>${item.productName.translated}</td>
+                <td>${item.quantity}</td>
+                <td>${item.price.formattedAmount}</td>
+              </tr>
+            `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      `;
+      
+  // Trigger the email
       await triggeredEmails.emailContact(
         "Upm0b8C", // Triggered email ID
         "e5c337b1-d023-417f-abf8-e6db82cf5f6c",
