@@ -249,7 +249,7 @@ function formatSingleFiringSlip(customerName, orderNumber, orderDate, item, item
   const placedDate = new Date(orderDate).toLocaleDateString('en-US', { 
     weekday: 'short', 
     year: 'numeric', 
-    month: 'short', 
+    month: 'long', 
     day: 'numeric' 
   });
   
@@ -265,7 +265,7 @@ function formatSingleFiringSlip(customerName, orderNumber, orderDate, item, item
       dueDate = dueDateObj.toLocaleDateString('en-US', { 
         weekday: 'short', 
         year: 'numeric', 
-        month: 'short', 
+        month: 'long', 
         day: 'numeric' 
       });
     }
@@ -297,50 +297,33 @@ function formatSingleFiringSlip(customerName, orderNumber, orderDate, item, item
   const cleanCustomerName = decodeHtmlEntities(customerName);
   const cleanType = decodeHtmlEntities(options.Type || item.productName.translated);
   
-  // Start building the slip
+  // Build the slip
   let slip = `<br><br>${cleanCustomerName.toUpperCase()}<br><br>`;
-  slip += `Order #${orderNumber}<br>`;
-  slip += `Placed ${placedDate}<br>`;
-  slip += `Requested by ${dueDate}${daysUntilDue}<br><br><br>`;
+  slip += `Order #${orderNumber} - ${placedDate}<br><br>`;
+  slip += `Requested by ${dueDate}${daysUntilDue}<br><br>`;
   
-  slip += `FIRING DETAILS:<br><br>`;
-  slip += `${cleanType}<br><br>`;
+  slip += `${cleanType.toUpperCase()}<br>`;
+  slip += `${options.Height || '?'}"H x ${options.Width || '?'}"W x ${options.Length || '?'}"D<br>`;
+  slip += `${options.Volume || '?'} in³ x ${item.quantity} @ $${options.UnitCost || '0.00'} = ${item.totalPriceAfterTax.formattedAmount}<br>`;
   
-  // Build dimensions table with box-drawing characters
-  const h = (options.Height || '?').toString().padEnd(3);
-  const w = (options.Width || '?').toString().padEnd(3);
-  const l = (options.Length || '?').toString().padEnd(3);
-  const vol = (options.Volume || '?').toString().padEnd(6);
-  const qty = item.quantity.toString().padEnd(3);
-  const unitCost = (options.UnitCost || '0.00').padStart(10);
-  const total = item.totalPriceAfterTax.formattedAmount.padStart(6);
-  
-  slip += `Dimensions:<br>`;
-  slip += `┌─────┬─────┬─────┬────────┬─────┬────────────┬────────┐<br>`;
-  slip += `│  H  │  W  │  L  │  Vol   │ Qty │ Unit Price │ Total  │<br>`;
-  slip += `├─────┼─────┼─────┼────────┼─────┼────────────┼────────┤<br>`;
-  slip += `│ ${h} │ ${w} │ ${l} │ ${vol} │ ${qty} │ ${unitCost} │ ${total} │<br>`;
-  slip += `└─────┴─────┴─────┴────────┴─────┴────────────┴────────┘<br>`;
-  slip += `${options.Height || '?'}" × ${options.Width || '?'}" × ${options.Length || '?'}" = ${options.Volume || '?'} in³ × ${item.quantity} × $${options.UnitCost || '0.00'} = ${item.totalPriceAfterTax.formattedAmount}<br><br>`;
-  
-  // Add special directions if present
+  // Add instructions if present
   if (item.descriptionLines) {
     const directionsLine = item.descriptionLines.find(line => 
       line.name?.original === "Special Directions"
     );
     if (directionsLine && directionsLine.plainText?.original !== "None") {
       const cleanDirections = decodeHtmlEntities(directionsLine.plainText.original);
-      slip += `SPECIAL DIRECTIONS:<br>`;
+      slip += `<br>INSTRUCTIONS<br>`;
       slip += `${cleanDirections}<br>`;
     }
   }
   
-  slip += `<br><br>`;
-  
-  // Add item number if multiple items
+  // Add item number only if multiple items
   if (totalItems > 1) {
-    slip += `Item ${itemNumber} of ${totalItems}<br>`;
+    slip += `<br>Item ${itemNumber} of ${totalItems}`;
   }
+  
+  slip += `<br><br>`;
   
   return slip;
 }
