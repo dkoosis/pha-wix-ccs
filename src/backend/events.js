@@ -27,9 +27,6 @@ export function wixEcom_onOrderPaymentStatusUpdated(event) {
     const eventId = event.metadata.id;
     
     if(currentPaymentStatus == "PAID") {
-        // Send customer receipt
-        sendReceipt(orderId)
-        
         // Send firing slip to printer
         // Use catch to prevent firing slip errors from breaking order flow
         sendFiringSlip(orderId).catch(error => {

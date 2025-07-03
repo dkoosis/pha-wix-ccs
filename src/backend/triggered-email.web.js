@@ -248,14 +248,10 @@ function formatSingleFiringSlip(customerName, orderNumber, orderDate, item, item
   const options = item.catalogReference?.options || {};
   
   let slip = `
-========================================
-         FIRING SLIP
-========================================
 Customer: ${customerName}
 Order #: ${orderNumber}
 Date: ${orderDate}
 Item: ${itemNumber} of ${totalItems}
-========================================
 
 FIRING DETAILS:
 `;
@@ -289,7 +285,7 @@ Total: ${item.totalPriceAfterTax.formattedAmount}
   }
 
   slip += `
-========================================
+---
 `;
 
   return slip;
