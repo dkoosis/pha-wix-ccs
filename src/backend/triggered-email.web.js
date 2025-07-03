@@ -229,10 +229,6 @@ export const sendFiringSlip = webMethod(
     }
   }
 );
-// Backup of original function
-function formatSingleFiringSlip_bak(customerName, orderNumber, orderDate, item, itemNumber, totalItems) {
-  // [previous code - keep as is]
-}
 
 /**
  * Formats a single firing item as a printer-friendly slip with extended ASCII
