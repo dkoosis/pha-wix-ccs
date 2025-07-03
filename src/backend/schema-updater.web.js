@@ -1,4 +1,6 @@
 // src/backend/schema-updater.web.js
+//
+
 import { webMethod, Permissions } from '@wix/web-methods';
 import { collections } from 'wix-data.v2';
 import { elevate } from 'wix-auth';
