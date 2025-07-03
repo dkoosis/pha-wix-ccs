@@ -229,7 +229,125 @@ export const sendFiringSlip = webMethod(
     }
   }
 );
+// Backup of original function
+function formatSingleFiringSlip_bak(customerName, orderNumber, orderDate, item, itemNumber, totalItems) {
+  // [previous code - keep as is]
+}
 
+/**
+ * Formats a single firing item as a printer-friendly slip with extended ASCII
+ * Uses <br> tags for line breaks but avoids other HTML entities
+ * 
+ * @param {string} customerName - Full customer name
+ * @param {string} orderNumber - Friendly order number
+ * @param {string} orderDate - Formatted order date
+ * @param {object} item - Line item from the order
+ * @param {number} itemNumber - Current item number
+ * @param {number} totalItems - Total number of firing items in order
+ * @returns {string} Formatted text for the firing slip
+ */
+function formatSingleFiringSlip(customerName, orderNumber, orderDate, item, itemNumber, totalItems) {
+  const options = item.catalogReference?.options || {};
+  
+  // Format dates
+  const placedDate = new Date(orderDate).toLocaleDateString('en-US', { 
+    weekday: 'short', 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric' 
+  });
+  
+  // Get due date from description lines
+  let dueDate = 'Not specified';
+  let dueDateObj = null;
+  if (item.descriptionLines) {
+    const dueDateLine = item.descriptionLines.find(line => 
+      line.name?.original === "Due Date"
+    );
+    if (dueDateLine?.plainText?.original) {
+      dueDateObj = new Date(dueDateLine.plainText.original);
+      dueDate = dueDateObj.toLocaleDateString('en-US', { 
+        weekday: 'short', 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+    }
+  }
+  
+  // Calculate days until due
+  let daysUntilDue = '';
+  if (dueDateObj) {
+    const today = new Date();
+    const diffTime = dueDateObj - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    daysUntilDue = ` (${diffDays} days)`;
+  }
+  
+  // Helper function to decode HTML entities
+  function decodeHtmlEntities(text) {
+    if (!text) return text;
+    return text
+      .replace(/&#x27;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ');
+  }
+  
+  // Clean all text values
+  const cleanCustomerName = decodeHtmlEntities(customerName);
+  const cleanType = decodeHtmlEntities(options.Type || item.productName.translated);
+  
+  // Start building the slip
+  let slip = `<br><br>${cleanCustomerName.toUpperCase()}<br><br>`;
+  slip += `Order #${orderNumber}<br>`;
+  slip += `Placed ${placedDate}<br>`;
+  slip += `Requested by ${dueDate}${daysUntilDue}<br><br><br>`;
+  
+  slip += `FIRING DETAILS:<br><br>`;
+  slip += `${cleanType}<br><br>`;
+  
+  // Build dimensions table with box-drawing characters
+  const h = (options.Height || '?').toString().padEnd(3);
+  const w = (options.Width || '?').toString().padEnd(3);
+  const l = (options.Length || '?').toString().padEnd(3);
+  const vol = (options.Volume || '?').toString().padEnd(6);
+  const qty = item.quantity.toString().padEnd(3);
+  const unitCost = (options.UnitCost || '0.00').padStart(10);
+  const total = item.totalPriceAfterTax.formattedAmount.padStart(6);
+  
+  slip += `Dimensions:<br>`;
+  slip += `┌─────┬─────┬─────┬────────┬─────┬────────────┬────────┐<br>`;
+  slip += `│  H  │  W  │  L  │  Vol   │ Qty │ Unit Price │ Total  │<br>`;
+  slip += `├─────┼─────┼─────┼────────┼─────┼────────────┼────────┤<br>`;
+  slip += `│ ${h} │ ${w} │ ${l} │ ${vol} │ ${qty} │ ${unitCost} │ ${total} │<br>`;
+  slip += `└─────┴─────┴─────┴────────┴─────┴────────────┴────────┘<br>`;
+  slip += `${options.Height || '?'}" × ${options.Width || '?'}" × ${options.Length || '?'}" = ${options.Volume || '?'} in³ × ${item.quantity} × $${options.UnitCost || '0.00'} = ${item.totalPriceAfterTax.formattedAmount}<br><br>`;
+  
+  // Add special directions if present
+  if (item.descriptionLines) {
+    const directionsLine = item.descriptionLines.find(line => 
+      line.name?.original === "Special Directions"
+    );
+    if (directionsLine && directionsLine.plainText?.original !== "None") {
+      const cleanDirections = decodeHtmlEntities(directionsLine.plainText.original);
+      slip += `SPECIAL DIRECTIONS:<br>`;
+      slip += `${cleanDirections}<br>`;
+    }
+  }
+  
+  slip += `<br><br>`;
+  
+  // Add item number if multiple items
+  if (totalItems > 1) {
+    slip += `Item ${itemNumber} of ${totalItems}<br>`;
+  }
+  
+  return slip;
+}
 /**
  * Formats a single firing item as a printer-friendly slip
  * Each item gets its own slip to accompany the physical pottery piece
@@ -242,7 +360,7 @@ export const sendFiringSlip = webMethod(
  * @param {number} totalItems - Total number of firing items in order
  * @returns {string} Formatted text for the firing slip
  */
-function formatSingleFiringSlip(customerName, orderNumber, orderDate, item, itemNumber, totalItems) {
+function formatSingleFiringSlip_bak(customerName, orderNumber, orderDate, item, itemNumber, totalItems) {
   // Extract firing-specific options from the catalog reference
   // These come from the firing worksheet widget
   const options = item.catalogReference?.options || {};
