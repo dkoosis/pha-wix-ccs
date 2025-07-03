@@ -248,7 +248,7 @@ function formatSingleFiringSlip(customerName, orderNumber, orderDate, item, item
   const options = item.catalogReference?.options || {};
   
   let slip = `
-Customer: ${customerName}
+${customerName}
 Order #: ${orderNumber}
 Date: ${orderDate}
 Item: ${itemNumber} of ${totalItems}
@@ -258,8 +258,8 @@ FIRING DETAILS:
 
   // Add all the firing-specific information
   slip += `
-Type: ${options.Type || item.productName.translated}
-Dimensions: ${options.Height || '?'}" H × ${options.Width || '?'}" W × ${options.Length || '?'}" L
+${options.Type || item.productName.translated}
+${options.Height || '?'}" H × ${options.Width || '?'}" W × ${options.Length || '?'}" L
 Volume: ${options.Volume || '?'} cubic inches
 Quantity: ${item.quantity}
 Price: ${item.price.formattedAmount} each
@@ -280,7 +280,7 @@ Total: ${item.totalPriceAfterTax.formattedAmount}
       line.name?.original === "Special Directions"
     );
     if (directionsLine && directionsLine.plainText?.original !== "None") {
-      slip += `\nSPECIAL DIRECTIONS:\n${directionsLine.plainText.original}\n`;
+      slip += `<BR>SPECIAL DIRECTIONS:<BR>${directionsLine.plainText.original}\n`;
     }
   }
 
