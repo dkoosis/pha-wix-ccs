@@ -28,12 +28,12 @@ export const sendReceipt = webMethod(
       console.log("order", order);
 
       // Extract necessary fields
-      const orderDate = new Date(order.purchasedDate).toLocaleDateString();
+      const orderDate = new Date(order._createdDate).toLocaleDateString();
       const paymentDate = new Date(order.activities.find(a => a.type === "ORDER_PAID")?._createdDate || "").toLocaleDateString();
       const customerName = `${order.billingInfo.contactDetails.firstName} ${order.billingInfo.contactDetails.lastName}`;
       const customerEmail = order.buyerInfo.email;
       const customerPhone = order.billingInfo.contactDetails.phone;
-      const receiptNumber = order.activities.find(a => a.type === "RECEIPT_CREATED")?.receiptCreated?.wixReceipt?.displayNumber || "";
+      const receiptNumber = ""; // Receipt number not easily accessible from order object
       const companyName = ""; // Leave empty if not applicable
       const paymentCard = ""; // Leave empty if not retrievable
       const SITE_URL = "https://yourdomain.com"; // Replace with your actual site URL
@@ -144,7 +144,7 @@ export const sendFiringSlip = webMethod(
       const customerName = `${order.billingInfo.contactDetails.firstName} ${order.billingInfo.contactDetails.lastName}`;
       const customerLastName = order.billingInfo.contactDetails.lastName || 'Customer';
       const orderNumber = order.number; // Friendly order number (not the GUID)
-      const orderDate = new Date(order._dateCreated).toLocaleDateString();
+      const orderDate = new Date(order._createdDate).toLocaleDateString();
       
       // Send a separate email for each firing item
       let emailsSent = 0;
@@ -193,7 +193,7 @@ export const sendFiringSlip = webMethod(
                   // Order info
                   orderNumber: orderNumber,
                   orderDate: orderDate,
-                  orderTotalAmount: item.totalPrice.formattedAmount,
+                  orderTotalAmount: item.totalPriceAfterTax.formattedAmount,
                   
                   // Item-specific info
                   itemName: item.productName.translated,
@@ -267,7 +267,7 @@ Dimensions: ${options.Height || '?'}" H × ${options.Width || '?'}" W × ${optio
 Volume: ${options.Volume || '?'} cubic inches
 Quantity: ${item.quantity}
 Price: ${item.price.formattedAmount} each
-Total: ${item.totalPrice.formattedAmount}
+Total: ${item.totalPriceAfterTax.formattedAmount}
 `;
 
   // Extract due date from description lines (added by worksheet)
