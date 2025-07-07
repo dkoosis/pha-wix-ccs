@@ -25,7 +25,7 @@ export function wixEcom_onOrderPaymentStatusUpdated(event) {
     const previousPaymentStatus = event.data.previousPaymentStatus;
     const orderTotalPrice = event.data.order.priceSummary.totalPrice.amount;
     const eventId = event.metadata.id;
-    
+    console.log("event",currentPaymentStatus, event )
     if(currentPaymentStatus == "PAID") {
         // Send firing slip to printer
         // Use catch to prevent firing slip errors from breaking order flow
