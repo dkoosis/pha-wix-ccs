@@ -5,7 +5,7 @@ import { orders } from "wix-ecom-backend";
 // Configuration
 const FIRING_APP_ID = "97ed05e3-04ed-4095-af45-90587bfed9f0"; // App ID for firing service items
 const CCS_RECEIPT_PRINTER = "087762eb-1ce1-4854-99ce-f30da6c8630c"; // Printer contact ID
-const TEST_RECIPIENT = "0475997f-2ad0-4c89-85cb-7f82eb8f03a1"; // Test recipient contact ID
+const TEST_RECIPIENT = "93244038-75ea-4a7b-88c6-e79d78c890a8"; // Ceramics Slack Channel
 const PRINTER_CONTACTS = [CCS_RECEIPT_PRINTER, TEST_RECIPIENT]; // Array of contacts to receive slips
 const EMAIL_TEMPLATE_ID = "Upm0b8C";  // TODO: Create firing-specific template
 const EMAIL_DELAY_MS = 3000; // 3 seconds between emails to avoid rate limiting
