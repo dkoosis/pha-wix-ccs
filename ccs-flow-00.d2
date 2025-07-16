@@ -1,0 +1,255 @@
+vars: {
+
+  d2-config: {
+ 
+ layout-engine: elk
+ 
+ }
+ 
+ }
+ 
+ 
+ 
+ Community Ceramics Studio Application: {
+ 
+ shape: sequence_diagram
+ 
+ Applicant: {
+ 
+ shape: person
+ 
+ width: 110
+ 
+ height: 110
+ 
+ }
+ 
+ PHA: {
+ 
+ shape: image
+ 
+ width: 110
+ 
+ height: 110
+ 
+ icon: https://i0.wp.com/hyperallergic-newspack.s3.amazonaws.com/uploads/2023/06/powerhousearts.png
+ 
+ }
+ 
+ Fillout: {
+ 
+ shape: image
+ 
+ width: 100
+ 
+ height: 100
+ 
+ icon: https://images.crunchbase.com/image/upload/c_pad,h_170,w_170,f_auto,b_white,q_auto:eco,dpr_1/bmfrqthlp5zbs2rmlz40
+ 
+ }
+ 
+ Airtable: {
+ 
+ shape: image
+ 
+ width: 100
+ 
+ height: 100
+ 
+ icon: https://play-lh.googleusercontent.com/0AKPNIi6-DctOVBQcipKTQkgBUnz3xtob_6FVDBqFc8dtX7Pa0fWp4yWEjoENjyPBn2n=w240-h480-rw
+ 
+ }
+ 
+ Gmail: {
+ 
+ shape: image
+ 
+ width: 100
+ 
+ height: 100
+ 
+ icon: https://play-lh.googleusercontent.com/KSuaRLiI_FlDP8cM4MzJ23ml3og5Hxb9AapaGTMZ2GgR103mvJ3AAnoOFz1yheeQBBI=w240-h480-rw
+ 
+ }
+ 
+ Make: {
+ 
+ shape: image
+ 
+ width: 90
+ 
+ height: 90
+ 
+ icon: https://assets-global.website-files.com/5e6aa3e3f001fae105b8e1e7/6234cf71361c3d748dc7b24d_make-logo-p-500.png
+ 
+ }
+ 
+ Slack: {
+ 
+ shape: image
+ 
+ width: 100
+ 
+ height: 100
+ 
+ icon: https://play-lh.googleusercontent.com/mzJpTCsTW_FuR6YqOPaLHrSEVCSJuXzCljdxnCKhVZMcu6EESZBQTCHxMh8slVtnKqo=w480-h960-rw
+ 
+ }
+ 
+ Calendly: {
+ 
+ shape: image
+ 
+ width: 100
+ 
+ height: 100
+ 
+ icon: https://logosandtypes.com/wp-content/uploads/2022/09/calendly.svg
+ 
+ # https://icons.terrastruct.com/essentials%2F273-calendar.svg
+ 
+ }
+ 
+ Stripe: {
+ 
+ shape: image
+ 
+ width: 90
+ 
+ height: 90
+ 
+ icon: https://play-lh.googleusercontent.com/2PS6w7uBztfuMys5fgodNkTwTOE6bLVB2cJYbu5GHlARAK36FzO5bUfMDP9cEJk__cE=w480-h960-rw
+ 
+ }
+ 
+ Box Sign: {
+ 
+ shape: image
+ 
+ width: 90
+ 
+ height: 90
+ 
+ icon: https://www.box.com/sites/default/files/2021-08/icon-box-sign_0.svg
+ 
+ }
+ 
+ Box: {
+ 
+ shape: image
+ 
+ width: 90
+ 
+ height: 90
+ 
+ icon: https://play-lh.googleusercontent.com/kif95mwH33EVmCgo5HEtExiHMEotoOiMDNVfs2fmIb2LLbsfIrOsNmAlt8bq3xZ_Xuk=w480-h960-rw
+ 
+ }
+ 
+ Potter: {
+ 
+ shape: person
+ 
+ width: 110
+ 
+ height: 110
+ 
+ }
+ 
+ 
+ 
+ Applicant -> PHA: visit website
+ 
+ apply for studio membership: {
+ 
+ PHA -> Fillout: apply
+ 
+ Fillout -> Applicant: thank you (HTTP)
+ 
+ }
+ 
+ automatic acknowledgement: {
+ 
+ Fillout -> Airtable: save form
+ 
+ Airtable -> Slack: announce
+ 
+ Airtable -> Make: (SMTP Webhook)
+ 
+ Make -> Gmail: acknowledgement
+ 
+ }
+ 
+ Gmail -> Applicant: acknowledgement
+ 
+ 
+ 
+ review application: {
+ 
+ Potter -> Airtable: review application
+ 
+ }
+ 
+ 
+ 
+ POSITIVE REVIEW automatic invitation to join: {
+ 
+ Airtable -> Make: (SMTP Webhook)
+ 
+ Make -> Gmail: invitation
+ 
+ }
+ 
+ Gmail -> Applicant: invitation
+ 
+ 
+ 
+ Join the Studio: {
+ 
+ choose start date + space: {
+ 
+ Applicant -> Fillout: choose start date
+ 
+ Applicant -> Fillout: choose space (subscription)
+ 
+ }
+ 
+ 
+ 
+ pay security deposit: {
+ 
+ Applicant -> Stripe: pay security deposit
+ 
+ Stripe -> Applicant: security deposit reeipt (email)
+ 
+ }
+ 
+ Stripe -> Airtable: update applicant record
+ 
+ Airtable -> Make: (SMTP Webhook)
+ 
+ Make -> Box Sign: generate signature request
+ 
+ 
+ 
+ sign waiver + agreement: {
+ 
+ Box Sign -> Applicant: request signature (email)
+ 
+ Applicant -> Box Sign: sign waiver + agreement (HTTP)
+ 
+ }
+ 
+ Box Sign -> Airtable: update applicant record
+ 
+ 
+ 
+ schedule orientation: {
+ 
+ Applicant <-> Calendly: schedule orientation
+ 
+ }
+ 
+ }
+ 
+ }
