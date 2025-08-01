@@ -21,6 +21,16 @@ export const ROLES = {
         ID: "f3f8ed52-8f27-42dc-9265-97b5d5bb2125",
         NAME: "CCS_Applicant",
         DESCRIPTION: "Someone who has filled out the application form to join the Community Ceramics Studio."
+    },
+    CCS_ADMIN: {
+        ID: "c4b5c14b-0bf9-4095-ba9a-6e30b1ae5098",
+        NAME: "CCS_Admin",
+        DESCRIPTION: "Administrator with full access to ceramics studio management."
+    },
+    LEGACY_CS_MEMBER: {
+        ID: "5293fdfd-d64d-4369-a62d-1005310f83c4",
+        NAME: "Legacy_CS_Member",
+        DESCRIPTION: "Legacy member from previous ceramics studio system."
     }
 };
 
@@ -60,14 +70,34 @@ export const COLLECTIONS = {
     }
 };
 
+// Store Category IDs (for ecom validation)
+export const STORE_CATEGORIES = {
+    PUBLIC: "73ee77a3-8088-44de-25b0-2f7036230425",
+    INVITEE: "c2465f08-2bee-800c-fe57-552cac54872e",
+    STUDIO_MEMBER: "87b5bf4f-950d-2892-74cb-58456a5cd88d"
+};
+
+// Booking Service Category IDs
+export const BOOKING_CATEGORIES = {
+    PUBLIC: "76184047-3013-4429-aca4-da6424aa69ca",
+    INVITEE: "cf7c4ce0-fa48-4792-aa7d-715b9da5b578",
+    MEMBER: "6be9f851-aa3e-405f-9d4c-7beb883cc289"
+};
+
+// Discount IDs
+export const DISCOUNTS = {
+    STUDIO_MEMBER_ID: "d11eda27-4484-4eee-b2a9-13f72c49a277",
+    STUDIO_MEMBER_COUPON_CODE: "STUDIOMEMBER"
+};
+
 // Other constants
 export const DISPLAY_DELAY = 1500;
 
 // Role to collection access mapping
 export const ROLE_COLLECTIONS = {
-    // Map which collections each role should see
     SITE_MEMBER: [COLLECTIONS.PUBLIC.ID],
-    CCS_APPLICANT: [COLLECTIONS.PUBLIC.ID], // Update this if needed
+    CCS_APPLICANT: [COLLECTIONS.PUBLIC.ID],
     CCS_INVITEE: [COLLECTIONS.INVITEE.ID],
-    CCS_MEMBER: [COLLECTIONS.STUDIO_MEMBER.ID]
+    CCS_MEMBER: [COLLECTIONS.STUDIO_MEMBER.ID],
+    LEGACY_CS_MEMBER: [COLLECTIONS.STUDIO_MEMBER.ID]
 };

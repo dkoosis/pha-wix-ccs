@@ -6,3 +6,6 @@ node_modules/
 .husky/
 jsconfig.json
 sctipts/
+
+# Local state tracking for Claude context
+state.yaml

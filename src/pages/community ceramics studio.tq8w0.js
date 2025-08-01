@@ -1,8 +1,7 @@
 //import { Permissions, webMethod } from "wix-web-module";
 //import { currentMember } from 'wix-members-backend';
 import { authentication } from 'wix-members-frontend';
-
-const STUDIO_MEMBER_ROLE_ID = "ad647c5b-efc7-4c21-b196-376d6ccd85b8"; 
+import { ROLES } from 'public/constants.js';
 
 $w.onReady(function () {
     renderUI();
@@ -25,11 +24,11 @@ $w.onReady(function () {
             console.log("member roles", memberRoles);
 
             const memberRoleIds = memberRoles.map((role) => role._id);
-            const isStudioMember = memberRoleIds.includes(STUDIO_MEMBER_ROLE_ID);
+            const isStudioMember = memberRoleIds.includes(ROLES.CCS_MEMBER.ID);
             if (!isStudioMember) return;
 
             return await currentCart.updateCurrentCart({
-                couponCode: STUDIO_MEMBER_DISCOUNT_COUPON_CODE,
+                couponCode: DISCOUNTS.STUDIO_MEMBER_COUPON_CODE,
             })
 
         } catch (error) {
