@@ -197,10 +197,18 @@ export const sendFiringSlip = webMethod(
         // Send to each printer contact (in case of multiple printers)
         for (const contactId of PRINTER_CONTACTS) {
           try {
-            console.log(`[FIRING-SLIP]   - Sending to contact: ${contactId}`);
-            console.log(`[FIRING-SLIP]     Subject: FS - ${customerLastName} - #${orderNumber}`);
+            const contactIndex = PRINTER_CONTACTS.indexOf(contactId);
+            const contactName = contactId === CCS_RECEIPT_PRINTER ? 'PRINTER' : 'SLACK';
             
-            await triggeredEmails.emailContact(
+            console.log(`[FIRING-SLIP]   - Attempting send ${contactIndex + 1}/${PRINTER_CONTACTS.length} to ${contactName}`);
+            console.log(`[FIRING-SLIP]     Contact ID: ${contactId}`);
+            console.log(`[FIRING-SLIP]     Subject: FS - ${customerLastName} - #${orderNumber}`);
+            console.log(`[FIRING-SLIP]     Template: ${EMAIL_TEMPLATE_ID}`);
+            
+            // Log the exact call we're making
+            console.log(`[FIRING-SLIP]     Calling triggeredEmails.emailContact...`);
+            
+            const emailResult = await triggeredEmails.emailContact(
               EMAIL_TEMPLATE_ID,
               contactId,
               {
@@ -238,13 +246,21 @@ export const sendFiringSlip = webMethod(
                 }
               }
             );
+            
+            // Log what the API returned
+            console.log(`[FIRING-SLIP]     API Response:`, JSON.stringify(emailResult || 'undefined'));
+            
             emailsSent++;
-            console.log(`[FIRING-SLIP]   ✓ Email sent successfully to ${contactId} (item ${itemNumber}/${totalItems})`);
+            console.log(`[FIRING-SLIP]   ✓ Email ${contactIndex + 1} (${contactName}) completed - item ${itemNumber}/${totalItems}`);
           } catch (error) {
+            const contactName = contactId === CCS_RECEIPT_PRINTER ? 'PRINTER' : 'SLACK';
             emailsFailed++;
-            console.error(`[FIRING-SLIP]   ✗ FAILED to send to ${contactId} (item ${itemNumber}):`);
+            console.error(`[FIRING-SLIP]   ✗ FAILED to send to ${contactName} (${contactId}):`);
+            console.error(`[FIRING-SLIP]     Error type: ${error.constructor.name}`);
             console.error(`[FIRING-SLIP]     Error message: ${error.message}`);
+            console.error(`[FIRING-SLIP]     Error details:`, JSON.stringify(error));
             console.error(`[FIRING-SLIP]     Error stack:`, error.stack);
+            // Don't throw - continue to next recipient
           }
         }
       }
