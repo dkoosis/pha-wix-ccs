@@ -15,7 +15,6 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Sends customer receipt to configured recipients
- * Fixed typo from "sendReciept" to "sendReceipt"
  * 
  * @param {string} orderId - The Wix order ID
  * @returns {Promise<void>}
@@ -124,19 +123,28 @@ export const sendReceipt = webMethod(
 export const sendFiringSlip = webMethod(
   Permissions.Anyone,
   async (orderId) => {
+    console.log(`[FIRING-SLIP] ====== Starting sendFiringSlip for orderId: ${orderId} ======`);
+    
     try {
       // Get the full order details from Wix
+      console.log(`[FIRING-SLIP] Step 1: Fetching order ${orderId} from Wix...`);
       const order = await orders.getOrder(orderId);
-      console.log("Processing firing slip for order:", order.number);
+      console.log(`[FIRING-SLIP] ✓ Order fetched: #${order.number}, Status: ${order.paymentStatus}, Total items: ${order.lineItems.length}`);
 
       // Filter for firing service items only - these have our custom APP_ID
-      const firingItems = order.lineItems.filter(item => 
-        item.catalogReference?.appId === FIRING_APP_ID
-      );
+      console.log(`[FIRING-SLIP] Step 2: Filtering for firing items with APP_ID: ${FIRING_APP_ID}`);
+      const firingItems = order.lineItems.filter(item => {
+        const appId = item.catalogReference?.appId;
+        const isFiringItem = appId === FIRING_APP_ID;
+        console.log(`[FIRING-SLIP]   - Item: "${item.productName.translated}" | AppID: ${appId || 'none'} | Is firing: ${isFiringItem}`);
+        return isFiringItem;
+      });
+
+      console.log(`[FIRING-SLIP] ✓ Found ${firingItems.length} firing items`);
 
       // Skip if no firing items in this order
       if (firingItems.length === 0) {
-        console.log("No firing items in order", order.number);
+        console.log(`[FIRING-SLIP] No firing items in order #${order.number} - Exiting normally`);
         return;
       }
 
@@ -146,22 +154,36 @@ export const sendFiringSlip = webMethod(
       const orderNumber = order.number; // Friendly order number (not the GUID)
       const orderDate = new Date(order._createdDate).toLocaleDateString();
       
+      console.log(`[FIRING-SLIP] Step 3: Customer info extracted`);
+      console.log(`[FIRING-SLIP]   - Name: ${customerName}`);
+      console.log(`[FIRING-SLIP]   - Order: #${orderNumber}`);
+      console.log(`[FIRING-SLIP]   - Date: ${orderDate}`);
+      console.log(`[FIRING-SLIP]   - Email: ${order.buyerInfo.email}`);
+      
       // Send a separate email for each firing item
       let emailsSent = 0;
       let emailsFailed = 0;
+      
+      console.log(`[FIRING-SLIP] Step 4: Starting email send for ${firingItems.length} items to ${PRINTER_CONTACTS.length} contacts`);
+      console.log(`[FIRING-SLIP]   - Template ID: ${EMAIL_TEMPLATE_ID}`);
+      console.log(`[FIRING-SLIP]   - Contacts: ${PRINTER_CONTACTS.join(', ')}`);
 
       for (let i = 0; i < firingItems.length; i++) {
         const item = firingItems[i];
         const itemNumber = i + 1;
         const totalItems = firingItems.length;
         
+        console.log(`[FIRING-SLIP] Processing item ${itemNumber}/${totalItems}: "${item.productName.translated}"`);
+        
         // Add delay between emails to avoid overwhelming email service
         // Skip delay for first item
         if (i > 0) {
+          console.log(`[FIRING-SLIP]   - Waiting ${EMAIL_DELAY_MS}ms before next email...`);
           await delay(EMAIL_DELAY_MS);
         }
 
         // Format this individual item as a printer-friendly slip
+        console.log(`[FIRING-SLIP]   - Formatting firing slip...`);
         const firingSlipText = formatSingleFiringSlip(
           customerName, 
           orderNumber, 
@@ -170,10 +192,14 @@ export const sendFiringSlip = webMethod(
           itemNumber, 
           totalItems
         );
+        console.log(`[FIRING-SLIP]   - Slip formatted (${firingSlipText.length} chars)`);
 
         // Send to each printer contact (in case of multiple printers)
         for (const contactId of PRINTER_CONTACTS) {
           try {
+            console.log(`[FIRING-SLIP]   - Sending to contact: ${contactId}`);
+            console.log(`[FIRING-SLIP]     Subject: FS - ${customerLastName} - #${orderNumber}`);
+            
             await triggeredEmails.emailContact(
               EMAIL_TEMPLATE_ID,
               contactId,
@@ -213,18 +239,28 @@ export const sendFiringSlip = webMethod(
               }
             );
             emailsSent++;
-            console.log(`Firing slip ${itemNumber}/${totalItems} sent to contact ${contactId}`);
+            console.log(`[FIRING-SLIP]   ✓ Email sent successfully to ${contactId} (item ${itemNumber}/${totalItems})`);
           } catch (error) {
             emailsFailed++;
-            console.error(`Failed to send slip ${itemNumber} to contact ${contactId}:`, error);
+            console.error(`[FIRING-SLIP]   ✗ FAILED to send to ${contactId} (item ${itemNumber}):`);
+            console.error(`[FIRING-SLIP]     Error message: ${error.message}`);
+            console.error(`[FIRING-SLIP]     Error stack:`, error.stack);
           }
         }
       }
 
-      console.log(`Firing slips complete: ${emailsSent} sent, ${emailsFailed} failed`);
+      console.log(`[FIRING-SLIP] ====== Email Send Complete ======`);
+      console.log(`[FIRING-SLIP] Summary: ${emailsSent} sent, ${emailsFailed} failed`);
+      console.log(`[FIRING-SLIP] Expected: ${firingItems.length * PRINTER_CONTACTS.length} total emails`);
+      
+      if (emailsFailed > 0) {
+        console.warn(`[FIRING-SLIP] WARNING: ${emailsFailed} emails failed to send`);
+      }
 
     } catch (error) {
-      console.error("Error sending firing slip:", error);
+      console.error(`[FIRING-SLIP] ✗✗✗ CRITICAL ERROR in sendFiringSlip:`);
+      console.error(`[FIRING-SLIP] Error message: ${error.message}`);
+      console.error(`[FIRING-SLIP] Error stack:`, error.stack);
       throw error;
     }
   }

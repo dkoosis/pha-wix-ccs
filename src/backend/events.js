@@ -21,16 +21,30 @@ export async function wixMembers_onMemberCreated(event) {
  */
 export function wixEcom_onOrderPaymentStatusUpdated(event) {
     const orderId = event.data.order._id;
+    const orderNumber = event.data.order.number;
     const currentPaymentStatus = event.data.order.paymentStatus;
     const previousPaymentStatus = event.data.previousPaymentStatus;
     const orderTotalPrice = event.data.order.priceSummary.totalPrice.amount;
     const eventId = event.metadata.id;
-    console.log("event",currentPaymentStatus, event )
+    
+    console.log(`[FIRING-EVENT] Payment status updated for Order #${orderNumber} (${orderId})`);
+    console.log(`[FIRING-EVENT] Status: ${previousPaymentStatus} -> ${currentPaymentStatus}`);
+    console.log(`[FIRING-EVENT] Total: ${orderTotalPrice}`);
+    
     if(currentPaymentStatus == "PAID") {
+        console.log(`[FIRING-EVENT] Order PAID - Triggering sendFiringSlip for Order #${orderNumber}`);
+        
         // Send firing slip to printer
         // Use catch to prevent firing slip errors from breaking order flow
-        sendFiringSlip(orderId).catch(error => {
-            console.error('Failed to send firing slip:', error);
-        });
+        sendFiringSlip(orderId)
+            .then(result => {
+                console.log(`[FIRING-EVENT] ✓ Firing slip sent successfully for Order #${orderNumber}`);
+            })
+            .catch(error => {
+                console.error(`[FIRING-EVENT] ✗ Failed to send firing slip for Order #${orderNumber}:`, error.message);
+                console.error(`[FIRING-EVENT] Error stack:`, error.stack);
+            });
+    } else {
+        console.log(`[FIRING-EVENT] Order not paid (${currentPaymentStatus}) - Skipping firing slip`);
     }
 }
