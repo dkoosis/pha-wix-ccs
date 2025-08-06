@@ -1,6 +1,8 @@
 import { Permissions, webMethod } from "wix-web-module";
 import { triggeredEmails } from "wix-crm-backend";
 import { orders } from "wix-ecom-backend";
+import { contacts } from "wix-crm-backend";
+import wixData from "wix-data";
 
 // Configuration
 const FIRING_APP_ID = "97ed05e3-04ed-4095-af45-90587bfed9f0"; // App ID for firing service items
@@ -12,6 +14,76 @@ const EMAIL_DELAY_MS = 3000; // 3 seconds between emails to avoid rate limiting
 
 // Helper function for delays between emails
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Admin contact for critical alerts
+const ADMIN_CONTACT_ID = "f1e8e370-6b78-49f0-b434-d85e00a67e9b"; // Your admin contact
+
+/**
+ * Alert admin when email sending fails due to contact validation issues
+ */
+async function alertAdminAboutEmailFailure(details) {
+  const { contactId, contactName, orderId, orderNumber, errorMessage } = details;
+  
+  const alertBody = `
+    CRITICAL ISSUE: Firing slip email failed
+    
+    Order: #${orderNumber}
+    Failed Contact: ${contactName} (${contactId})
+    Error: ${errorMessage}
+    
+    ACTION REQUIRED:
+    1. Check contact ${contactId} in Wix CRM
+    2. Look for "UNSUBSCRIBED" status
+    3. Either re-subscribe the contact or create a new one
+    4. Update the contact ID in the code if needed
+    
+    The firing slip was still sent to Slack for backup.
+  `;
+  
+  // Send alert email to admin
+  await triggeredEmails.emailContact(
+    EMAIL_TEMPLATE_ID,
+    ADMIN_CONTACT_ID,
+    {
+      variables: {
+        emailSubject: `🚨 URGENT: Firing Slip Failed - Order #${orderNumber}`,
+        itemDescription: alertBody.replace(/\n/g, '<br>'),
+        customerName: "SYSTEM ALERT",
+        orderNumber: orderNumber,
+        orderDate: new Date().toLocaleDateString(),
+        customerEmailAddress: "system@alert",
+        customerPhoneNumber: "N/A",
+        orderTotalAmount: "$0.00",
+        itemName: "System Alert",
+        itemQuantity: "1",
+        itemPrice: "$0.00",
+        emailAddress: "system@alert",
+        receiptNumber: "",
+        tax: "$0.00",
+        orderSubtotal: "$0.00",
+        paymentDate: new Date().toLocaleDateString(),
+        paymentCard: "",
+        paymentTotal: "$0.00",
+        companyName: "PHA System"
+      }
+    }
+  );
+  
+  // Also log to a collection for tracking
+  try {
+    await wixData.insert("EmailSystemErrors", {
+      orderId,
+      orderNumber,
+      contactId,
+      contactName,
+      errorMessage,
+      timestamp: new Date(),
+      resolved: false
+    });
+  } catch (logErr) {
+    console.error("Failed to log error to collection:", logErr);
+  }
+}
 
 /**
  * Sends customer receipt to configured recipients
@@ -260,6 +332,26 @@ export const sendFiringSlip = webMethod(
             console.error(`[FIRING-SLIP]     Error message: ${error.message}`);
             console.error(`[FIRING-SLIP]     Error details:`, JSON.stringify(error));
             console.error(`[FIRING-SLIP]     Error stack:`, error.stack);
+            
+            // Check for critical email validation errors
+            if (error.message.includes("does not have valid email for site")) {
+              console.error(`[FIRING-SLIP] 🚨 CRITICAL: Contact ${contactId} has invalid email status`);
+              
+              // Alert admin about this critical issue
+              try {
+                await alertAdminAboutEmailFailure({
+                  contactId,
+                  contactName,
+                  orderId,
+                  orderNumber,
+                  errorMessage: error.message,
+                  itemDescription: firingSlipText.substring(0, 200) + '...'
+                });
+              } catch (alertErr) {
+                console.error(`[FIRING-SLIP] Failed to send admin alert:`, alertErr);
+              }
+            }
+            
             // Don't throw - continue to next recipient
           }
         }
